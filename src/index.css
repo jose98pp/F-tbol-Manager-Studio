@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-anton {
+    font-family: 'Anton', sans-serif;
+  }
+  .font-chakra {
+    font-family: 'Chakra Petch', sans-serif;
+  }
+  .font-orbitron {
+    font-family: 'Orbitron', sans-serif;
+  }
+  .font-rajdhani {
+    font-family: 'Rajdhani', sans-serif;
+  }
+  .font-montserrat {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .text-glow-green {
+    text-shadow: 0 0 10px rgba(34, 197, 94, 0.8), 0 0 20px rgba(34, 197, 94, 0.5), 0 0 35px rgba(34, 197, 94, 0.3);
+  }
+
+  .text-glow-cyan {
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.8), 0 0 20px rgba(6, 182, 212, 0.5);
+  }
+
+  .box-glow-green {
+    box-shadow: 0 0 25px -5px rgba(34, 197, 94, 0.5), 0 0 10px -2px rgba(34, 197, 94, 0.3);
+  }
+
+  .box-glow-cyan {
+    box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.5), 0 0 10px -2px rgba(6, 182, 212, 0.3);
+  }
+
+  .border-glow-green {
+    border-color: #22c55e;
+    box-shadow: inset 0 0 15px rgba(34, 197, 94, 0.25), 0 0 15px rgba(34, 197, 94, 0.3);
+  }
+
+  .clip-esports-corner {
+    clip-path: polygon(12px 0%, 100% 0%, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0% 100%, 0% 12px);
+  }
+
+  .clip-esports-tag {
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+
+  .clip-hexagon {
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 8px #22c55e); }
+  50% { opacity: 1; filter: drop-shadow(0 0 22px #4ade80); }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}

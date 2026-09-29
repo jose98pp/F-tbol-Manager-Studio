@@ -1,0 +1,6 @@
+{
+  "name": "Fútbol Banner Studio - JoseCPP98",
+  "description": "Generador profesional de banners publicitarios de fútbol para TikTok y Facebook con plantillas editables, escudos oficiales, estadísticas en tiempo real y resultados automáticos personalizados para tu canal de YouTube.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
