@@ -9,6 +9,7 @@ export interface FixtureMatch {
   awayClubId: string;
   dateStr: string; // "MAR 29 / 15:00"
   stadium?: string;
+  time?: string;
   homeScore?: number;
   awayScore?: number;
   status?: string; // "15:00", "EN VIVO", "FIN"

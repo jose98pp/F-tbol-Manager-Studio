@@ -29,6 +29,15 @@ import { CompetitionBadge } from './components/CompetitionBadge';
 import { ActiveBannerTeamsBar } from './components/ActiveBannerTeamsBar';
 import { LayersPanel } from './components/LayersPanel';
 import { CanvasLayer, getDefaultLayersForTemplate } from './data/layers';
+import { BrandProfile, DEFAULT_BRAND_PROFILES, brandProfileToChannelBranding } from './data/brands';
+import { BrandProfilesModal } from './components/BrandProfilesModal';
+import { MultiFormatExportModal } from './components/MultiFormatExportModal';
+import { SavedTemplatesModal } from './components/SavedTemplatesModal';
+import { BatchGeneratorModal } from './components/BatchGeneratorModal';
+import { MediaLibraryModal } from './components/MediaLibraryModal';
+import { SocialPublisherModal } from './components/SocialPublisherModal';
+import { AiSocialCaptionsPanel } from './components/AiSocialCaptionsPanel';
+import { FixtureMatch } from './data/templates';
 
 import {
   Download,
@@ -53,14 +62,20 @@ import {
   Palette,
   Sparkles,
   Layers,
-  Move
+  Move,
+  Send,
+  Tv,
+  Bookmark,
+  Image as ImageIcon,
+  Share2
 } from 'lucide-react';
 
 export default function App() {
   const [data, setData] = useState<TemplateData>(INITIAL_TEMPLATE_DATA);
-  const [branding, setBranding] = useState<ChannelBranding>(DEFAULT_BRANDING);
+  const [activeBrand, setActiveBrand] = useState<BrandProfile>(DEFAULT_BRAND_PROFILES[0]);
+  const [branding, setBranding] = useState<ChannelBranding>(brandProfileToChannelBranding(DEFAULT_BRAND_PROFILES[0]));
   const [activeFormat, setActiveFormat] = useState<BannerFormat>(BANNER_FORMATS[0]); // default TikTok 9:16
-  const [activeTab, setActiveTab] = useState<'fixture' | 'match' | 'lineup' | 'goal' | 'standings' | 'layers' | 'export'>('fixture');
+  const [activeTab, setActiveTab] = useState<'fixture' | 'match' | 'lineup' | 'goal' | 'standings' | 'layers' | 'captions' | 'export'>('fixture');
   
   // Draggable Canvas Layers State
   const [layersByTemplate, setLayersByTemplate] = useState<Record<string, CanvasLayer[]>>({
@@ -75,6 +90,15 @@ export default function App() {
   const [selectedLayerId, setSelectedLayerId] = useState<string | undefined>();
 
   // Modals
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isMultiFormatModalOpen, setIsMultiFormatModalOpen] = useState(false);
+  const [isSavedTemplatesModalOpen, setIsSavedTemplatesModalOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isMediaLibraryModalOpen, setIsMediaLibraryModalOpen] = useState(false);
+  const [isPublisherModalOpen, setIsPublisherModalOpen] = useState(false);
+  const [initialPublisherText, setInitialPublisherText] = useState('');
+  const [initialPublisherNetwork, setInitialPublisherNetwork] = useState<string | undefined>();
+
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState(false);
   const [isClubPickerOpen, setIsClubPickerOpen] = useState(false);
@@ -155,6 +179,75 @@ export default function App() {
       [data.type]: getDefaultLayersForTemplate(data.type)
     }));
     setSelectedLayerId(undefined);
+  };
+
+  // Switch brand profile
+  const handleSelectBrand = (brand: BrandProfile) => {
+    setActiveBrand(brand);
+    setBranding(brandProfileToChannelBranding(brand));
+  };
+
+  // Load match from batch generator into canvas
+  const handleLoadMatchIntoCanvas = (match: FixtureMatch, mode: 'versus' | 'result') => {
+    setData(prev => ({
+      ...prev,
+      type: mode,
+      singleMatch: {
+        ...prev.singleMatch,
+        homeClubId: match.homeClubId,
+        awayClubId: match.awayClubId,
+        matchTime: match.time || '17:30 BOT',
+        homeScore: match.homeScore ?? (mode === 'result' ? 2 : 0),
+        awayScore: match.awayScore ?? (mode === 'result' ? 1 : 0)
+      }
+    }));
+    setActiveTab('match');
+  };
+
+  // Export all formats sequentially in HD (Multi-format adaptation)
+  const handleExportAllFormats = async () => {
+    const originalFmt = activeFormat;
+    const targetFormats = BANNER_FORMATS.filter(f => f.id !== 'facebook-feed');
+    for (const fmt of targetFormats) {
+      setActiveFormat(fmt);
+      await new Promise(r => setTimeout(r, 400));
+      const node = document.getElementById('soccer-banner-capture');
+      if (node) {
+        const dataUrl = await toPng(node, {
+          pixelRatio: 2,
+          cacheBust: true,
+          quality: 0.98,
+          skipFonts: true,
+          filter: (domNode: HTMLElement) => !(domNode?.dataset?.exportHide === 'true')
+        });
+        const link = document.createElement('a');
+        link.download = `banner-${data.type}-${fmt.id}-${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    }
+    setActiveFormat(originalFmt);
+  };
+
+  // Insert asset from media library as a custom layer
+  const handleInsertAssetAsLayer = (name: string, url: string) => {
+    const currentL = currentLayers;
+    const maxZ = Math.max(...currentL.map(l => l.zIndex), 40);
+    const newLayer: CanvasLayer = {
+      id: `custom-media-${Date.now()}`,
+      name: name.slice(0, 18),
+      category: 'custom',
+      x: 0,
+      y: 0,
+      zIndex: maxZ + 1,
+      opacity: 1,
+      isLocked: false,
+      isVisible: true,
+      customText: name
+    };
+    handleUpdateCurrentLayers([...currentL, newLayer]);
+    setSelectedLayerId(newLayer.id);
+    setIsMediaLibraryModalOpen(false);
   };
 
   // Handle club selection from modal
@@ -413,6 +506,17 @@ export default function App() {
 
         {/* Action Header Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Brand Profile Switcher Button */}
+          <button
+            onClick={() => setIsBrandModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-purple-500/40 text-xs font-semibold text-purple-300 transition-colors cursor-pointer shrink-0"
+            title="Cambiar canal o marca deportiva"
+          >
+            <Tv className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span className="hidden xl:inline">Marca:</span>
+            <span className="font-bold truncate max-w-[80px] sm:max-w-[120px] text-white">{activeBrand.name}</span>
+          </button>
+
           {/* Tournament Selector Pill */}
           <button
             onClick={() => setIsCompetitionModalOpen(true)}
@@ -434,18 +538,17 @@ export default function App() {
             title="Historial de escudos y búsqueda en internet"
           >
             <Shield className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span className="hidden lg:inline">Escudos / Historial</span>
+            <span className="hidden lg:inline">Escudos</span>
           </button>
 
-          {/* Channel Customization Button */}
+          {/* Publish & Calendar Central Button */}
           <button
-            onClick={() => setIsChannelModalOpen(true)}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors cursor-pointer shrink-0"
-            title="Personalizar canal"
+            onClick={() => setIsPublisherModalOpen(true)}
+            className="flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/20 transition-all cursor-pointer shrink-0 active:scale-95"
+            title="Publicar en cuentas conectadas y programar en horario de Bolivia (BOT)"
           >
-            <Settings className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden xl:inline">Canal:</span>
-            <span className="hidden sm:inline text-emerald-400 font-bold">{branding.channelName}</span>
+            <Send className="w-3.5 h-3.5" />
+            <span>Publicar</span>
           </button>
 
           {/* Direct Copy Button */}
@@ -463,10 +566,10 @@ export default function App() {
           <button
             onClick={handleExportImage}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
-            <span className="hidden xs:inline">{isExporting ? 'Generando...' : 'Descargar HD'}</span>
+            <span className="hidden xs:inline">{isExporting ? '...' : 'Descargar'}</span>
           </button>
         </div>
       </header>
@@ -630,10 +733,69 @@ export default function App() {
           {/* Interactive Banner Canvas Display with Zoom */}
           <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-6 flex items-center justify-center relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
             {/* Top Floating Canvas Design Toolbar */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2 bg-slate-900/90 border border-slate-700 p-1 sm:p-1.5 rounded-2xl shadow-xl backdrop-blur-md text-xs z-20">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 bg-slate-900/90 border border-slate-700 p-1 sm:p-1.5 rounded-2xl shadow-xl backdrop-blur-md text-xs z-20 max-w-[95vw] overflow-x-auto [scrollbar-width:none]">
+              {/* Multi-Format Auto-Adaptation */}
+              <button
+                onClick={() => setIsMultiFormatModalOpen(true)}
+                className="px-2.5 py-1 rounded-xl text-cyan-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Generar versiones cuadradas, verticales y horizontales simultáneas"
+              >
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Multi-Formato</span>
+              </button>
+
+              {/* Batch Generator */}
+              <button
+                onClick={() => setIsBatchModalOpen(true)}
+                className="px-2.5 py-1 rounded-xl text-emerald-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Generar todos los banners de la fecha por lote"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">Lote Fecha</span>
+              </button>
+
+              {/* Media Library */}
+              <button
+                onClick={() => setIsMediaLibraryModalOpen(true)}
+                className="px-2.5 py-1 rounded-xl text-purple-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Biblioteca de estadios bolivianos, escudos y fotos"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden md:inline">Biblioteca</span>
+              </button>
+
+              {/* Saved Templates */}
+              <button
+                onClick={() => setIsSavedTemplatesModalOpen(true)}
+                className="px-2.5 py-1 rounded-xl text-yellow-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                title="Plantillas deportivas guardadas y presets"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-yellow-400" />
+                <span className="hidden sm:inline">Plantillas</span>
+              </button>
+
+              {/* AI Captions & Social Copy */}
+              <button
+                onClick={() => {
+                  setActiveTab('captions');
+                  setMobileView('editor');
+                }}
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                  activeTab === 'captions'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-500/30'
+                    : 'text-purple-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Generar textos y hashtags para redes sociales con IA"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">Textos IA</span>
+              </button>
+
+              <div className="w-px h-4 bg-slate-700 mx-0.5 shrink-0" />
+
               <button
                 onClick={() => setIsDragModeActive(d => !d)}
-                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
                   isDragModeActive
                     ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
@@ -649,7 +811,7 @@ export default function App() {
                   setActiveTab('layers');
                   setMobileView('editor');
                 }}
-                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
                   activeTab === 'layers'
                     ? 'bg-slate-800 text-cyan-400 border border-cyan-500/50'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
@@ -662,7 +824,7 @@ export default function App() {
 
               <button
                 onClick={() => setShowCanvasGuides(g => !g)}
-                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
                   showCanvasGuides
                     ? 'bg-emerald-500 text-slate-950 shadow-sm'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
@@ -1063,6 +1225,19 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('captions')}
+              className={`py-2 px-2.5 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'captions'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Descripciones y hashtags inteligentes para redes sociales"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>Textos IA</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('export')}
               className={`py-2 px-2 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'export'
@@ -1087,6 +1262,19 @@ export default function App() {
                   isDragModeActive={isDragModeActive}
                   onToggleDragMode={() => setIsDragModeActive(d => !d)}
                   onResetAllLayers={handleResetCurrentLayers}
+                />
+              </div>
+            )}
+            {activeTab === 'captions' && (
+              <div className="h-full -m-4">
+                <AiSocialCaptionsPanel
+                  data={data}
+                  branding={branding}
+                  onOpenPublisherWithText={(network, text) => {
+                    setInitialPublisherNetwork(network);
+                    setInitialPublisherText(text);
+                    setIsPublisherModalOpen(true);
+                  }}
                 />
               </div>
             )}
@@ -1278,6 +1466,60 @@ export default function App() {
         club={selectedClubForInfo}
         onSelectPlayerForGoal={handleSelectPlayerForGoal}
         onApplySquadToLineup={handleApplySquadToLineup}
+      />
+
+      {/* Multi-Brand Profiles & Accounts */}
+      <BrandProfilesModal
+        isOpen={isBrandModalOpen}
+        onClose={() => setIsBrandModalOpen(false)}
+        activeBrandId={activeBrand.id}
+        onSelectBrand={handleSelectBrand}
+      />
+
+      {/* Multi-Format Auto-Adaptation (1:1, 9:16, 16:9, 4:5) */}
+      <MultiFormatExportModal
+        isOpen={isMultiFormatModalOpen}
+        onClose={() => setIsMultiFormatModalOpen(false)}
+        data={data}
+        branding={branding}
+        layers={currentLayers}
+        onApplyFormatToCanvas={(format) => setActiveFormat(format)}
+        onExportAll={handleExportAllFormats}
+      />
+
+      {/* Saved Sports Templates & Presets */}
+      <SavedTemplatesModal
+        isOpen={isSavedTemplatesModalOpen}
+        onClose={() => setIsSavedTemplatesModalOpen(false)}
+        currentData={data}
+        onApplyTemplate={(newTemplateData) => setData(newTemplateData)}
+      />
+
+      {/* Matchday Batch Generator */}
+      <BatchGeneratorModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        data={data}
+        branding={branding}
+        onLoadMatchIntoCanvas={handleLoadMatchIntoCanvas}
+        onOpenPublisher={() => setIsPublisherModalOpen(true)}
+      />
+
+      {/* Bolivian Stadiums, Shields & Photo Library */}
+      <MediaLibraryModal
+        isOpen={isMediaLibraryModalOpen}
+        onClose={() => setIsMediaLibraryModalOpen(false)}
+        onInsertAssetAsLayer={handleInsertAssetAsLayer}
+      />
+
+      {/* Social Publisher & Bolivia Schedule (BOT UTC-4) */}
+      <SocialPublisherModal
+        isOpen={isPublisherModalOpen}
+        onClose={() => setIsPublisherModalOpen(false)}
+        data={data}
+        activeBrand={activeBrand}
+        initialCaption={initialPublisherText}
+        initialNetwork={initialPublisherNetwork}
       />
     </div>
   );

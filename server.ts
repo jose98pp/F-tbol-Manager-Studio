@@ -317,6 +317,167 @@ app.post('/api/ai/social-hype', async (req, res) => {
   }
 });
 
+// API: Detailed Multi-Network AI Captions & Hashtag Generator
+app.post('/api/ai/generate-social-captions', async (req, res) => {
+  try {
+    const {
+      templateType = 'versus',
+      tournament = 'Copa Paceña',
+      homeClub = 'Bolívar',
+      awayClub = 'The Strongest',
+      details = '',
+      channelName = 'JoseCPP98',
+      tone = 'emocionante'
+    } = req.body;
+
+    if (!process.env.GEMINI_API_KEY) {
+      // High-quality smart fallbacks per network
+      const matchLabel = `${homeClub} vs ${awayClub}`;
+      return res.json({
+        tiktok: {
+          caption: `🔥 ¡Se viene el choque del año! ${matchLabel} por ${tournament}. ¿Quién se lleva los 3 puntos? Déjalo en comentarios y apoya a tu equipo. ¡Transmisión en directo por ${channelName}! ⚽🏆`,
+          hashtags: ['#FutbolBoliviano', '#CopaPaceña', '#Clásico', '#LigaTecno', '#ParaTi', '#Futbol']
+        },
+        facebook: {
+          postText: `🚨 ¡ATENCIÓN HINCHADA! Se juega una nueva fecha crucial de ${tournament}.\n\n⚔️ ${matchLabel}\n${details ? `📌 ${details}\n` : ''}🎙️ Relato y comentarios exclusivos con todo el análisis en vivo a través de ${channelName}.\n\n¿Cuál es tu pronóstico para hoy? ¿Gana el local o la visita? Te leemos en la caja de comentarios 👇🔥`,
+          callToAction: '¡Sigue la página y activa las notificaciones para no perderte el arranque!',
+          hashtags: ['#FutbolBoliviano', '#EnVivo', '#TransmisionDeportiva', '#CopaPacena']
+        },
+        instagram: {
+          caption: `⚡ DÍA DE PARTIDO | ${matchLabel} ⚡\n\nTodo listo para una jornada inolvidable de ${tournament}. La pasión no se detiene y tú puedes seguir cada jugada minuto a minuto con nosotros.\n\n🔗 Link en nuestra bio para la transmisión completa.\n\n#${channelName.replace(/\s+/g, '')} #FutbolBolivia #Matchday`,
+          hashtags: ['#Matchday', '#FutbolSudamericano', '#PasionFutbolera', '#InstaFutbol']
+        },
+        twitter: {
+          tweet: `⚽ ¡HOY SE JUEGA! ${matchLabel} por la fecha de ${tournament}.\n\n${details ? `🕒 ${details}\n` : ''}🔴 En vivo con relatos y estadísticas al instante por @${channelName.replace(/\s+/g, '')}.\n\n¿Quién gana? RT o FAV 🔥`,
+          hashtags: ['#FutbolBoliviano', '#Clasico', '#EnVivo']
+        },
+        youtube: {
+          title: `🔴 EN VIVO: ${matchLabel} | ${tournament} | Relatos y Reacciones`,
+          description: `Transmisión en directo del encuentro entre ${matchLabel} por ${tournament}.\n\n${details ? `Información del encuentro: ${details}\n\n` : ''}⚽ Sigue todas las incidencias, análisis táctico y estadísticas en tiempo real con ${channelName}.\n\n🔔 Suscríbete y activa la campanita para todas las fechas del fútbol boliviano e internacional.`,
+          tags: [homeClub, awayClub, tournament, 'Futbol Boliviano en vivo', channelName, 'Resumen y goles']
+        }
+      });
+    }
+
+    const prompt = `Eres el community manager y periodista deportivo jefe de "${channelName}". Genera textos de publicación y hashtags optimizados para CADA una de las siguientes redes sociales: TikTok, Facebook, Instagram, X (Twitter) y YouTube.
+
+Contexto del contenido:
+- Tipo de banner: ${templateType}
+- Torneo / Competición: ${tournament}
+- Equipos / Protagonistas: ${homeClub} vs ${awayClub}
+- Detalles adicionales (fecha, hora, marcador o goleador): ${details}
+- Tono deseado: ${tone} (ej. emocionante, periodístico, polémico, o urgente)
+
+Reglas por red:
+1. TikTok: Con gancho en las primeras palabras, dinámico, emojis deportivos, pregunta para generar comentarios y hashtags virales de TikTok.
+2. Facebook: Post narrativo más extenso, llamado a la comunidad, invitación a pronosticar y dejar comentarios, llamado a la acción claro.
+3. Instagram: Estética cuidada, saltos de línea limpios, llamada al "link en bio" y bloque de hashtags estéticos.
+4. Twitter (X): Máximo 250 caracteres, directo, emojis, mención a interactuar con RT/FAV.
+5. YouTube: Título llamativo con emojis y mayúsculas clave, descripción con timestamps o detalles, y lista de tags de búsqueda de YouTube.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            tiktok: {
+              type: Type.OBJECT,
+              properties: {
+                caption: { type: Type.STRING },
+                hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['caption', 'hashtags']
+            },
+            facebook: {
+              type: Type.OBJECT,
+              properties: {
+                postText: { type: Type.STRING },
+                callToAction: { type: Type.STRING },
+                hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['postText', 'callToAction', 'hashtags']
+            },
+            instagram: {
+              type: Type.OBJECT,
+              properties: {
+                caption: { type: Type.STRING },
+                hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['caption', 'hashtags']
+            },
+            twitter: {
+              type: Type.OBJECT,
+              properties: {
+                tweet: { type: Type.STRING },
+                hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['tweet', 'hashtags']
+            },
+            youtube: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                description: { type: Type.STRING },
+                tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ['title', 'description', 'tags']
+            }
+          },
+          required: ['tiktok', 'facebook', 'instagram', 'twitter', 'youtube']
+        }
+      }
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error('Error generating social captions:', error);
+    return res.status(500).json({ error: 'Failed to generate captions' });
+  }
+});
+
+// API: Simulated Multi-Channel Publishing & Scheduling
+app.post('/api/social/publish', (req, res) => {
+  const { channels = [], caption = '', scheduledFor, title = 'Publicación de Fútbol' } = req.body;
+  const isScheduled = !!scheduledFor;
+  const postId = `pub-${Date.now()}`;
+
+  const results = channels.map((channel: string) => {
+    // Generate realistic live URL per network
+    let postUrl = '';
+    const cleanChan = channel.toLowerCase();
+    if (cleanChan.includes('facebook')) {
+      postUrl = `https://www.facebook.com/posts/${Date.now().toString().slice(-8)}`;
+    } else if (cleanChan.includes('tiktok')) {
+      postUrl = `https://www.tiktok.com/@sports/video/${Date.now()}`;
+    } else if (cleanChan.includes('instagram')) {
+      postUrl = `https://www.instagram.com/p/C${Date.now().toString(36).toUpperCase()}/`;
+    } else if (cleanChan.includes('youtube')) {
+      postUrl = `https://www.youtube.com/post/Ugk${Date.now().toString(36)}`;
+    } else {
+      postUrl = `https://x.com/sports_bo/status/${Date.now()}`;
+    }
+
+    return {
+      channel,
+      status: isScheduled ? 'scheduled' : 'published',
+      publishedAt: isScheduled ? scheduledFor : new Date().toISOString(),
+      postUrl,
+      id: `${postId}-${cleanChan}`
+    };
+  });
+
+  return res.json({
+    success: true,
+    postId,
+    status: isScheduled ? 'scheduled' : 'published',
+    results
+  });
+});
+
 // Serve frontend with Vite in dev or static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
