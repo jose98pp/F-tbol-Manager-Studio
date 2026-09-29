@@ -26,6 +26,9 @@ import { GoalEditorPanel } from './components/GoalEditorPanel';
 
 import { ChannelLogoBadge } from './components/ChannelLogoBadge';
 import { CompetitionBadge } from './components/CompetitionBadge';
+import { ActiveBannerTeamsBar } from './components/ActiveBannerTeamsBar';
+import { LayersPanel } from './components/LayersPanel';
+import { CanvasLayer, getDefaultLayersForTemplate } from './data/layers';
 
 import {
   Download,
@@ -44,15 +47,33 @@ import {
   Flame,
   Check,
   Users,
-  Info
+  Info,
+  Grid,
+  ArrowLeftRight,
+  Palette,
+  Sparkles,
+  Layers,
+  Move
 } from 'lucide-react';
 
 export default function App() {
   const [data, setData] = useState<TemplateData>(INITIAL_TEMPLATE_DATA);
   const [branding, setBranding] = useState<ChannelBranding>(DEFAULT_BRANDING);
   const [activeFormat, setActiveFormat] = useState<BannerFormat>(BANNER_FORMATS[0]); // default TikTok 9:16
-  const [activeTab, setActiveTab] = useState<'fixture' | 'match' | 'lineup' | 'goal' | 'standings' | 'export'>('fixture');
+  const [activeTab, setActiveTab] = useState<'fixture' | 'match' | 'lineup' | 'goal' | 'standings' | 'layers' | 'export'>('fixture');
   
+  // Draggable Canvas Layers State
+  const [layersByTemplate, setLayersByTemplate] = useState<Record<string, CanvasLayer[]>>({
+    fixture: getDefaultLayersForTemplate('fixture'),
+    versus: getDefaultLayersForTemplate('versus'),
+    result: getDefaultLayersForTemplate('result'),
+    lineup: getDefaultLayersForTemplate('lineup'),
+    goal: getDefaultLayersForTemplate('goal'),
+    standings: getDefaultLayersForTemplate('standings')
+  });
+  const [isDragModeActive, setIsDragModeActive] = useState(false);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | undefined>();
+
   // Modals
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState(false);
@@ -74,8 +95,23 @@ export default function App() {
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [canvasZoom, setCanvasZoom] = useState<number>(100);
   const [mobileView, setMobileView] = useState<'canvas' | 'editor'>('canvas');
+  const [isTeamsBarCollapsed, setIsTeamsBarCollapsed] = useState(false);
+  const [showCanvasGuides, setShowCanvasGuides] = useState(false);
 
   const currentCompetition = getCompetitionById(data.competitionId);
+
+  // Quick cycle theme
+  const handleCycleTheme = () => {
+    const themes: Array<'neon-gaming' | 'tv-broadcast' | 'fire-red' | 'electric-blue'> = [
+      'neon-gaming',
+      'tv-broadcast',
+      'fire-red',
+      'electric-blue'
+    ];
+    const currentIndex = themes.indexOf(branding.theme);
+    const nextTheme = themes[(currentIndex + 1) % themes.length];
+    setBranding(prev => ({ ...prev, theme: nextTheme }));
+  };
 
   // Auto-fit canvas to current screen size
   const handleFitToScreen = () => {
@@ -91,6 +127,34 @@ export default function App() {
         setCanvasZoom(100);
       }
     }
+  };
+
+  // Layers helpers for current template
+  const currentLayers = layersByTemplate[data.type] || getDefaultLayersForTemplate(data.type);
+
+  const handleUpdateCurrentLayers = (newLayers: CanvasLayer[]) => {
+    setLayersByTemplate(prev => ({
+      ...prev,
+      [data.type]: newLayers
+    }));
+  };
+
+  const handleUpdateSingleLayer = (layerId: string, updated: Partial<CanvasLayer>) => {
+    setLayersByTemplate(prev => {
+      const templateLayers = prev[data.type] || getDefaultLayersForTemplate(data.type);
+      return {
+        ...prev,
+        [data.type]: templateLayers.map(l => (l.id === layerId ? { ...l, ...updated } : l))
+      };
+    });
+  };
+
+  const handleResetCurrentLayers = () => {
+    setLayersByTemplate(prev => ({
+      ...prev,
+      [data.type]: getDefaultLayersForTemplate(data.type)
+    }));
+    setSelectedLayerId(undefined);
   };
 
   // Handle club selection from modal
@@ -238,19 +302,25 @@ export default function App() {
       const filename = `banner-${data.type}-${currentCompetition.shortName.toLowerCase().replace(/\s+/g, '-')}-${activeFormat.id}-${Date.now()}.${exportFormat}`;
 
       let dataUrl: string;
+      const exportFilter = (domNode: HTMLElement) => {
+        return !(domNode?.dataset?.exportHide === 'true');
+      };
+
       if (exportFormat === 'png') {
         dataUrl = await toPng(node, {
           pixelRatio: exportScale,
           cacheBust: true,
           quality: 0.98,
-          skipFonts: true
+          skipFonts: true,
+          filter: exportFilter
         });
       } else {
         dataUrl = await toJpeg(node, {
           pixelRatio: exportScale,
           cacheBust: true,
           quality: 0.95,
-          skipFonts: true
+          skipFonts: true,
+          filter: exportFilter
         });
       }
 
@@ -283,7 +353,8 @@ export default function App() {
       const blob = await toBlob(node, {
         pixelRatio: 2,
         cacheBust: true,
-        skipFonts: true
+        skipFonts: true,
+        filter: (domNode: HTMLElement) => !(domNode?.dataset?.exportHide === 'true')
       });
       if (blob && navigator.clipboard) {
         await navigator.clipboard.write([
@@ -543,11 +614,103 @@ export default function App() {
             </div>
           </div>
 
+          {/* ACTIVE BANNER TEAMS BAR: View & edit all teams in current banner */}
+          <ActiveBannerTeamsBar
+            data={data}
+            onUpdateData={setData}
+            onOpenClubPicker={(ctx) => {
+              setClubPickerContext(ctx);
+              setIsClubPickerOpen(true);
+            }}
+            onOpenClubInfo={openClubInfo}
+            isCollapsed={isTeamsBarCollapsed}
+            onToggleCollapse={() => setIsTeamsBarCollapsed(c => !c)}
+          />
+
           {/* Interactive Banner Canvas Display with Zoom */}
           <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-6 flex items-center justify-center relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+            {/* Top Floating Canvas Design Toolbar */}
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2 bg-slate-900/90 border border-slate-700 p-1 sm:p-1.5 rounded-2xl shadow-xl backdrop-blur-md text-xs z-20">
+              <button
+                onClick={() => setIsDragModeActive(d => !d)}
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  isDragModeActive
+                    ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Activar arrastre libre de capas directamente en el lienzo"
+              >
+                <Move className="w-3.5 h-3.5" />
+                <span>{isDragModeActive ? 'Arrastre: ON' : 'Mover Capas'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('layers');
+                  setMobileView('editor');
+                }}
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  activeTab === 'layers'
+                    ? 'bg-slate-800 text-cyan-400 border border-cyan-500/50'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Abrir panel de capas para reordenar, bloquear o cambiar opacidad"
+              >
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Capas</span>
+              </button>
+
+              <button
+                onClick={() => setShowCanvasGuides(g => !g)}
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  showCanvasGuides
+                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Mostrar guías de alineación y zonas seguras para TikTok y Facebook"
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Guías</span>
+              </button>
+
+              {(data.type === 'versus' || data.type === 'result') && (
+                <button
+                  onClick={() => {
+                    setData(prev => ({
+                      ...prev,
+                      singleMatch: {
+                        ...prev.singleMatch,
+                        homeClubId: prev.singleMatch.awayClubId,
+                        awayClubId: prev.singleMatch.homeClubId,
+                        homeScore: prev.singleMatch.awayScore,
+                        awayScore: prev.singleMatch.homeScore
+                      }
+                    }));
+                  }}
+                  className="px-2.5 py-1 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Invertir local y visitante"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="hidden sm:inline">Invertir</span>
+                </button>
+              )}
+
+              <button
+                onClick={handleCycleTheme}
+                className="px-2.5 py-1 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Cambiar tema visual del banner"
+              >
+                <Palette className="w-3.5 h-3.5 text-yellow-400" />
+                <span className="hidden md:inline">Tema:</span>
+                <span className="text-yellow-400 font-black uppercase text-[10px]">
+                  {branding.theme.split('-')[0]}
+                </span>
+              </button>
+            </div>
+
             {/* Canvas Frame Wrapper with Responsive Aspect Ratio and Fluid Width */}
             <div
-              className="relative transition-all duration-300 shadow-2xl rounded-2xl overflow-hidden ring-1 ring-slate-800 shrink-0"
+              className="relative transition-all duration-300 shadow-2xl rounded-2xl overflow-hidden ring-1 ring-slate-800 shrink-0 group/canvas"
               style={{
                 width:
                   activeFormat.id === 'tiktok-story'
@@ -571,12 +734,52 @@ export default function App() {
                 transformOrigin: 'center center'
               }}
             >
+              {/* Optional Alignment Guides Overlay */}
+              {showCanvasGuides && (
+                <div className="absolute inset-0 pointer-events-none z-30 border-2 border-dashed border-emerald-400/50">
+                  {/* Center crosshair */}
+                  <div className="absolute top-1/2 left-0 right-0 h-px bg-cyan-400/40 border-t border-dashed border-cyan-400" />
+                  <div className="absolute top-0 bottom-0 left-1/2 w-px bg-cyan-400/40 border-l border-dashed border-cyan-400" />
+
+                  {/* TikTok Safe Zone Indicator */}
+                  {activeFormat.id === 'tiktok-story' && (
+                    <>
+                      <div className="absolute top-20 bottom-24 right-2 w-16 border border-yellow-400/40 bg-yellow-400/5 rounded-lg flex items-center justify-center">
+                        <span className="text-[9px] text-yellow-300 font-mono -rotate-90 whitespace-nowrap">
+                          Iconos TikTok
+                        </span>
+                      </div>
+                      <div className="absolute bottom-2 left-4 right-20 h-16 border border-yellow-400/40 bg-yellow-400/5 rounded-lg flex items-center justify-center">
+                        <span className="text-[9px] text-yellow-300 font-mono whitespace-nowrap">
+                          Zona Descripción / Caption
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 1:1 Feed Crop Guide */}
+                  {activeFormat.id !== 'facebook-square' && (
+                    <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 aspect-square border border-dashed border-emerald-400/40 pointer-events-none flex items-start justify-end p-1">
+                      <span className="text-[8px] font-mono text-emerald-300 bg-slate-950/80 px-1 rounded">
+                        Corte 1:1 Feed
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
               {/* Dynamic Banner Render based on Template Type */}
               {data.type === 'fixture' && (
                 <FixtureBanner
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectClubToSwap={openClubPickerForFixture}
                   onOpenCompetitionPicker={() => setIsCompetitionModalOpen(true)}
                 />
@@ -587,6 +790,13 @@ export default function App() {
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectClubToSwap={openClubPickerForVersus}
                   onOpenCompetitionPicker={() => setIsCompetitionModalOpen(true)}
                 />
@@ -597,6 +807,13 @@ export default function App() {
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectClubToSwap={() => {
                     setClubPickerContext({ target: 'lineup' });
                     setIsClubPickerOpen(true);
@@ -610,6 +827,13 @@ export default function App() {
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectScoringClub={() => {
                     setClubPickerContext({ target: 'goal-scorer' });
                     setIsClubPickerOpen(true);
@@ -623,6 +847,13 @@ export default function App() {
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectClubToSwap={openClubPickerForVersus}
                   onOpenCompetitionPicker={() => setIsCompetitionModalOpen(true)}
                 />
@@ -633,6 +864,13 @@ export default function App() {
                   data={data}
                   branding={branding}
                   format={activeFormat}
+                  layers={currentLayers}
+                  isDragModeActive={isDragModeActive}
+                  selectedLayerId={selectedLayerId}
+                  canvasZoom={canvasZoom}
+                  isExporting={isExporting}
+                  onUpdateLayer={handleUpdateSingleLayer}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
                   onSelectClubToSwap={openClubPickerForStandings}
                   onOpenCompetitionPicker={() => setIsCompetitionModalOpen(true)}
                 />
@@ -810,8 +1048,23 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('layers')}
+              className={`py-2 px-2.5 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'layers'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Capas</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-cyan-300 font-mono">
+                {currentLayers.length}
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('export')}
-              className={`py-2 px-2 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`py-2 px-2 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
                 activeTab === 'export'
                   ? 'bg-slate-800 text-emerald-400 border border-slate-700'
                   : 'text-slate-400 hover:text-white'
@@ -824,6 +1077,19 @@ export default function App() {
 
           {/* Active Tab Panel Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {activeTab === 'layers' && (
+              <div className="h-full -m-4">
+                <LayersPanel
+                  layers={currentLayers}
+                  onUpdateLayers={handleUpdateCurrentLayers}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={(id) => setSelectedLayerId(id)}
+                  isDragModeActive={isDragModeActive}
+                  onToggleDragMode={() => setIsDragModeActive(d => !d)}
+                  onResetAllLayers={handleResetCurrentLayers}
+                />
+              </div>
+            )}
             {activeTab === 'fixture' && (
               <FixtureEditorPanel
                 data={data}

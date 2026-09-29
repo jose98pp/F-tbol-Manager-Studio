@@ -117,8 +117,8 @@ export const INITIAL_TEMPLATE_DATA: TemplateData = {
   type: 'fixture',
   competitionId: 'copa-pacena',
   tournament: 'COPA PACEÑA',
-  roundTitle: 'FIXTURE',
-  dateRange: 'FECHA 6 • 29 SEP / 01 OCT',
+  roundTitle: 'FECHA 6',
+  dateRange: '29 SEP/ 01 OCT',
   stadiumTheme: 'copa-pacena',
   singleMatch: {
     homeClubId: 'bolivar',

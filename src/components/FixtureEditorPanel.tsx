@@ -47,13 +47,14 @@ export const FixtureEditorPanel: React.FC<FixtureEditorPanelProps> = ({
     });
   };
 
-  // Load the exact preset from Photo 3 (Copa Paceña Fecha 6)
+  // Load the exact preset from Photo (Copa Paceña Fecha 6)
   const handleLoadOfficialPhotoPreset = () => {
     onUpdateData({
       ...data,
+      competitionId: 'copa-pacena',
       tournament: 'COPA PACEÑA',
-      roundTitle: 'FIXTURE',
-      dateRange: 'FECHA 6 • 29 SEP / 01 OCT',
+      roundTitle: 'FECHA 6',
+      dateRange: '29 SEP/ 01 OCT',
       fixtureMatches: [
         {
           id: 'f1',
@@ -91,7 +92,7 @@ export const FixtureEditorPanel: React.FC<FixtureEditorPanelProps> = ({
           id: 'f5',
           day: 'MIÉRCOLES',
           homeClubId: 'real-tomayapo',
-          awayClubId: 'river-plate',
+          awayClubId: 'nacional-potosi',
           dateStr: 'MIÉ 30 / 18:30',
           stadium: 'IV Centenario'
         },

@@ -528,9 +528,18 @@ export const CLUBS: Club[] = [
     nickname: 'Los Leones del Sajama',
     badgeUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Escudo_Club_Gualberto_Villarroel_San_Jos%C3%A9.png/280px-Escudo_Club_Gualberto_Villarroel_San_Jos%C3%A9.png',
     badgeSvg: `<svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M30 18 L36 8 L50 16 L64 8 L70 18 Z" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
-      <path d="M50 20 L90 32 L90 78 Q50 115 50 115 Q10 78 10 32 Z" fill="#b91c1c" stroke="#facc15" stroke-width="3"/>
-      <polygon points="20,40 50,90 80,40 68,40 50,72 32,40" fill="#ffffff" />
+      <!-- Golden Crown -->
+      <path d="M26 18 L34 26 L50 12 L66 26 L74 18 L76 30 L24 30 Z" fill="#eab308" stroke="#ca8a04" stroke-width="1.5"/>
+      <circle cx="50" cy="12" r="2.5" fill="#fef08a"/>
+      <circle cx="26" cy="18" r="2" fill="#fef08a"/>
+      <circle cx="74" cy="18" r="2" fill="#fef08a"/>
+      <!-- Red Shield -->
+      <path d="M50 28 L86 36 L86 78 C86 102 50 116 50 116 C50 116 14 102 14 78 L14 36 Z" fill="#b91c1c" stroke="#eab308" stroke-width="3"/>
+      <!-- Header Banner -->
+      <polygon points="16,36 84,36 84,46 50,72 16,46" fill="#eab308"/>
+      <text x="50" y="44" text-anchor="middle" fill="#000000" font-family="Arial Black, sans-serif" font-weight="900" font-size="6.5">REAL ORURO</text>
+      <!-- Golden V letter -->
+      <path d="M34 56 L50 94 L66 56 L56 56 L50 78 L44 56 Z" fill="#fef08a"/>
     </svg>`,
     squad: [
       { id: 'ro1', name: 'Junior Peña', number: 1, position: 'POR' },

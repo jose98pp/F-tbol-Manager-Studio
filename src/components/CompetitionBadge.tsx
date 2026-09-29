@@ -11,10 +11,10 @@ interface CompetitionBadgeProps {
 }
 
 const SIZE_MAP = {
-  sm: 'w-12 h-10',
-  md: 'w-20 h-14',
-  lg: 'w-28 h-20',
-  xl: 'w-36 h-24'
+  sm: 'w-14 h-10',
+  md: 'w-24 h-16',
+  lg: 'w-32 h-22',
+  xl: 'w-44 h-28'
 };
 
 export const CompetitionBadge: React.FC<CompetitionBadgeProps> = ({
@@ -27,6 +27,10 @@ export const CompetitionBadge: React.FC<CompetitionBadgeProps> = ({
 }) => {
   const currentComp = competition || (competitionId ? getCompetitionById(competitionId) : getCompetitionById('copa-pacena'));
   const [imgError, setImgError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [currentComp?.id, currentComp?.badgeUrl]);
 
   return (
     <div

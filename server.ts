@@ -31,6 +31,9 @@ const ai = new GoogleGenAI({
   }
 });
 
+// Cache in memory for fast repeat proxy requests and avoid rate limits
+const imageProxyCache = new Map<string, { buffer: Buffer; contentType: string }>();
+
 // Proxy internet images to bypass CORS during canvas high-res export
 app.get('/api/proxy-image', async (req, res) => {
   const imageUrl = req.query.url as string;
@@ -38,21 +41,30 @@ app.get('/api/proxy-image', async (req, res) => {
     return res.status(400).send('Missing url parameter');
   }
 
+  // Check cache first
+  const cached = imageProxyCache.get(imageUrl);
+  if (cached) {
+    res.setHeader('Content-Type', cached.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(cached.buffer);
+  }
+
   try {
     let targetUrl = imageUrl;
+    const fetchHeaders = {
+      'User-Agent': 'SoccerStudioGraphics/1.0 (https://ais-studio.app; contact@soccerstudio.com)'
+    };
+
     let fetchResponse = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      headers: fetchHeaders
     });
 
     // If wikimedia thumb returned 403 or error, try direct original file
     if (!fetchResponse.ok && targetUrl.includes('upload.wikimedia.org/wikipedia/commons/thumb/')) {
       const directUrl = targetUrl.replace(/\/thumb(\/.*)\/[^/]+$/, '$1');
       const retryResponse = await fetch(directUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        headers: fetchHeaders
       });
       if (retryResponse.ok) {
         fetchResponse = retryResponse;
@@ -67,8 +79,15 @@ app.get('/api/proxy-image', async (req, res) => {
     const contentType = fetchResponse.headers.get('content-type') || 'image/png';
     const buffer = Buffer.from(await fetchResponse.arrayBuffer());
 
+    // Store in cache
+    if (imageProxyCache.size > 200) {
+      const firstKey = imageProxyCache.keys().next().value;
+      if (firstKey) imageProxyCache.delete(firstKey);
+    }
+    imageProxyCache.set(imageUrl, { buffer, contentType });
+
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(buffer);
   } catch (err: any) {

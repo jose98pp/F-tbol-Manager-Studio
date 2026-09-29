@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Competition, COMPETITIONS } from '../data/competitions';
 import { CompetitionBadge } from './CompetitionBadge';
-import { Trophy, X, Check, Plus, Upload, Globe2 } from 'lucide-react';
+import { Trophy, X, Check, Plus, Upload, Search } from 'lucide-react';
 
 interface CompetitionPickerModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ export const CompetitionPickerModal: React.FC<CompetitionPickerModalProps> = ({
   currentCompetitionId = 'copa-pacena'
 }) => {
   const [category, setCategory] = useState<'all' | 'bolivia' | 'conmebol' | 'uefa' | 'fifa'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customBadgeUrl, setCustomBadgeUrl] = useState('');
@@ -24,8 +25,14 @@ export const CompetitionPickerModal: React.FC<CompetitionPickerModalProps> = ({
   if (!isOpen) return null;
 
   const filteredCompetitions = COMPETITIONS.filter(c => {
-    if (category === 'all') return true;
-    return c.category === category;
+    const matchesCat = category === 'all' || c.category === category;
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      c.shortName.toLowerCase().includes(q) ||
+      c.sponsorText.toLowerCase().includes(q);
+    return matchesCat && matchesSearch;
   });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,6 +157,26 @@ export const CompetitionPickerModal: React.FC<CompetitionPickerModalProps> = ({
             <Plus className="w-3.5 h-3.5 text-yellow-400" />
             <span>Crear Torneo</span>
           </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-4 py-2 bg-slate-950/70 border-b border-slate-800 flex items-center gap-2">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por nombre (ej. Libertadores, Champions, Paceña, LaLiga, Premier, Mundial)..."
+            className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-[11px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800"
+            >
+              Limpiar
+            </button>
+          )}
         </div>
 
         {/* Custom Form Drawer */}
