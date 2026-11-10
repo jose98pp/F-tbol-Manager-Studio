@@ -662,7 +662,7 @@ app.get('/api/espn/summary', async (req, res) => {
       : Array.isArray(raw.roster) ? raw.roster : [];
 
     const positionCode = (value: any): 'POR' | 'DEF' | 'MED' | 'DEL' => {
-      const p = String(value?.abbreviation || value?.name || value || '').toLowerCase();
+      const p = String(value?.abbreviation || value?.displayName || value?.name || value || '').toLowerCase();
       if (/goal|keeper|gk|por/.test(p)) return 'POR';
       if (/back|defen|centre.?back|full.?back|cb|lb|rb/.test(p)) return 'DEF';
       if (/mid|wing|attacking|central|defensive.?mid|cm|dm|am/.test(p)) return 'MED';
@@ -675,7 +675,10 @@ app.get('/api/espn/summary', async (req, res) => {
       const groupedAthletes = Array.isArray(group?.statistics)
         ? group.statistics.flatMap((stat: any) => Array.isArray(stat.athletes) ? stat.athletes : [])
         : [];
-      const rawPlayers = group?.roster || group?.players || group?.athletes || competitor.roster || groupedAthletes;
+      const nestedPlayers = Array.isArray(group?.players)
+        ? group.players.flatMap((entry: any) => Array.isArray(entry.athletes) ? entry.athletes : [entry])
+        : [];
+      const rawPlayers = group?.roster || group?.athletes || competitor.roster || nestedPlayers.length ? (group?.roster || group?.athletes || competitor.roster || nestedPlayers) : groupedAthletes;
       const players = (Array.isArray(rawPlayers) ? rawPlayers : []).map((entry: any, index: number) => {
         const athlete = entry.athlete || entry.player || entry;
         const position = athlete.position || entry.position;
