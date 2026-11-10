@@ -442,6 +442,85 @@ export default function App() {
     });
   };
 
+  // Import an official ESPN starting XI into the editable lineup template.
+  const handleApplyEspnLineup = async ({
+    match,
+    leagueName,
+    team
+  }: {
+    match: any;
+    leagueName: string;
+    team: {
+      teamId: string;
+      teamName: string;
+      logo?: string;
+      formation?: string | null;
+      coach?: string;
+      starters: Array<{ id: string; name: string; number: number; position: Player['position']; photoUrl?: string }>;
+      substitutes: Array<{ id: string; name: string; number: number; position: Player['position']; photoUrl?: string }>;
+    };
+  }) => {
+    if (!team.starters.length) return;
+
+    const isHome = String(team.teamId) === String(match.homeTeam.id);
+    const sourceTeam = isHome ? match.homeTeam : match.awayTeam;
+    const color = sourceTeam.color ? `#${sourceTeam.color}` : (isHome ? '#0284c7' : '#facc15');
+    const clubId = `espn-${team.teamId}`;
+    const club: Club = {
+      id: clubId,
+      name: team.teamName,
+      shortName: (sourceTeam.abbreviation || team.teamName).slice(0, 14).toUpperCase(),
+      category: 'international',
+      primaryColor: color,
+      secondaryColor: '#ffffff',
+      accentColor: '#000000',
+      city: match.venue?.city || '',
+      stadium: match.venue?.name || '',
+      badgeUrl: team.logo || sourceTeam.logo,
+      badgeSvg: `<svg viewBox="0 0 100 120" fill="none"><circle cx="50" cy="60" r="45" fill="${color}"/><text x="50" y="65" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold">${(sourceTeam.abbreviation || team.teamName).slice(0, 3).toUpperCase()}</text></svg>`,
+      coach: team.coach || '',
+      squad: [...team.starters, ...team.substitutes].map((player) => ({
+        id: player.id,
+        name: player.name,
+        number: player.number,
+        position: player.position,
+        photoUrl: player.photoUrl
+      })),
+      isCustom: true
+    };
+
+    await addCustomClub(club);
+    const toPlayer = (player: typeof team.starters[number]): Player => ({
+      id: player.id,
+      name: player.name,
+      number: player.number,
+      position: player.position,
+      photoUrl: player.photoUrl
+    });
+    const validFormations = ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2'];
+    const formation = validFormations.includes(team.formation || '')
+      ? team.formation as TemplateData['lineup']['formation']
+      : data.lineup.formation;
+
+    setData((previous) => ({
+      ...previous,
+      type: 'lineup',
+      tournament: leagueName,
+      roundTitle: `ALINEACIÓN · ${team.teamName.toUpperCase()}`,
+      lineup: {
+        ...previous.lineup,
+        clubId,
+        formation,
+        coach: team.coach || previous.lineup.coach,
+        starters: team.starters.slice(0, 11).map(toPlayer),
+        substitutes: team.substitutes.slice(0, 18).map(toPlayer)
+      }
+    }));
+    setActiveTab('lineup');
+    setIsEspnModalOpen(false);
+    confetti({ particleCount: 35, spread: 55, origin: { y: 0.75 }, colors: [color, '#22d3ee', '#ffffff'] });
+  };
+
   // Handle club selection from modal
   const handleSelectClub = (club: Club) => {
     if (clubPickerContext.target === 'versus-home') {
@@ -1742,6 +1821,7 @@ export default function App() {
         onClose={() => setIsEspnModalOpen(false)}
         currentTemplateData={data}
         onApplyMatchToBanner={handleApplyEspnMatch}
+        onApplyLineupFromEspn={handleApplyEspnLineup}
       />
     </div>
   );
