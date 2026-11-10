@@ -135,6 +135,33 @@ export const DraggableLayer: React.FC<DraggableLayerProps> = ({
   };
 
   const hasOffset = layer.x !== 0 || layer.y !== 0;
+  const canResize = isDraggingEnabled && !isExporting && !layer.isLocked;
+
+  const handleResizeStart = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!canResize || !onUpdateLayer) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSelectLayer?.();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = layer.width || (e.currentTarget.parentElement?.getBoundingClientRect().width ?? 160) / (canvasZoom / 100);
+    const startHeight = layer.height || (e.currentTarget.parentElement?.getBoundingClientRect().height ?? 80) / (canvasZoom / 100);
+    const scale = Math.max(canvasZoom / 100, 0.1);
+    const handleMove = (event: PointerEvent) => {
+      onUpdateLayer({
+        width: Math.max(24, Math.round(startWidth + (event.clientX - startX) / scale)),
+        height: Math.max(24, Math.round(startHeight + (event.clientY - startY) / scale))
+      });
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+  };
 
   return (
     <div
@@ -174,7 +201,10 @@ export const DraggableLayer: React.FC<DraggableLayerProps> = ({
         ...style,
         transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
         opacity: layer.opacity,
-        zIndex: layer.zIndex
+        zIndex: layer.zIndex,
+        ...(layer.width ? { width: `${layer.width}px` } : {}),
+        ...(layer.height ? { height: `${layer.height}px` } : {}),
+        ...(layer.width ? { maxWidth: '100%' } : {})
       }}
     >
       {/* On-Canvas Visual Helper Badge when in Drag Mode */}
@@ -219,6 +249,18 @@ export const DraggableLayer: React.FC<DraggableLayerProps> = ({
       )}
 
       {children}
+      {canResize && isSelected && (
+        <button
+          type="button"
+          data-export-hide="true"
+          aria-label="Redimensionar objeto"
+          title="Arrastra para cambiar el tamaño"
+          onPointerDown={handleResizeStart}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute -bottom-1.5 -right-1.5 z-[60] h-4 w-4 rounded-sm border-2 border-white bg-cyan-500 shadow-lg cursor-nwse-resize touch-none"
+        />
+      )}
     </div>
   );
 };
