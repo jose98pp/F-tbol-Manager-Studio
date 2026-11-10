@@ -25,7 +25,7 @@ import { SavedTemplatePreset, getCustomPresets } from '../data/savedTemplates';
 import { BrandProfile, DEFAULT_BRAND_PROFILES } from '../data/brands';
 import { SocialPostRecord, getPublicationHistory } from '../data/publicationHistory';
 import { MediaAsset, getUserUploadedMedia } from '../data/mediaLibrary';
-import { TemplateData } from '../data/templates';
+import { WorkspaceSnapshot } from '../data/workspace';
 import { Club } from '../data/clubs';
 
 interface FirebaseContextType {
@@ -51,8 +51,8 @@ interface FirebaseContextType {
   removePublicationRecord: (id: string) => Promise<void>;
   addUserMediaAsset: (asset: Omit<MediaAsset, 'id' | 'isCustom'>) => Promise<MediaAsset>;
   removeUserMediaAsset: (id: string) => Promise<void>;
-  saveWorkspaceSnapshot: (data: TemplateData) => Promise<void>;
-  loadWorkspaceSnapshot: () => Promise<TemplateData | null>;
+  saveWorkspaceSnapshot: (snapshot: WorkspaceSnapshot) => Promise<void>;
+  loadWorkspaceSnapshot: () => Promise<WorkspaceSnapshot | null>;
   addCustomClub: (club: Club) => Promise<Club>;
   removeCustomClub: (id: string) => Promise<void>;
 }
@@ -339,14 +339,14 @@ export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 
   const saveWorkspaceSnapshot = useCallback(
-    async (data: TemplateData): Promise<void> => {
+    async (snapshot: WorkspaceSnapshot): Promise<void> => {
       if (!user) return;
-      await saveWorkspaceToFirestore(user.uid, data);
+      await saveWorkspaceToFirestore(user.uid, snapshot);
     },
     [user]
   );
 
-  const loadWorkspaceSnapshot = useCallback(async (): Promise<TemplateData | null> => {
+  const loadWorkspaceSnapshot = useCallback(async (): Promise<WorkspaceSnapshot | null> => {
     if (!user) return null;
     return await loadWorkspaceFromFirestore(user.uid);
   }, [user]);
