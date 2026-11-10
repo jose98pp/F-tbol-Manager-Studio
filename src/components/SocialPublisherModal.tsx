@@ -27,7 +27,8 @@ import {
   Twitter,
   Radio,
   Sparkles,
-  Share2
+  Share2,
+  Copy
 } from 'lucide-react';
 
 interface SocialPublisherModalProps {
