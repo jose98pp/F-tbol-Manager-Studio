@@ -91,19 +91,17 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   };
 
   const handlePublishNow = async () => {
-    setIsPublishing(true);
     const activeNets = Object.entries(selectedNetworks)
       .filter(([_, active]) => active)
       .map(([name]) => name as 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'twitter');
 
     if (activeNets.length === 0) {
-      alert('Por favor selecciona al menos una red social conectada.');
-      setIsPublishing(false);
+      alert('Por favor selecciona al menos una red social.');
       return;
     }
 
+    setIsPublishing(true);
     try {
-      // Call backend publish simulation
       const res = await fetch('/api/social/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,8 +112,26 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
           scheduledFor: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined
         })
       });
+      const result = await res.json().catch(() => ({}));
 
-      const result = await res.json();
+      if (!res.ok || result.success !== true) {
+        const message = result.message || 'No se pudo publicar. Verifica la conexión de las cuentas sociales.';
+        const failedRecord = savePublicationRecord({
+          title: title.trim() || 'Publicación de Fútbol',
+          templateType: data.type,
+          channelName: activeBrand.name,
+          networks: activeNets,
+          caption: caption.trim(),
+          status: 'failed',
+          scheduledTimeBolivia: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined,
+          errorMessage: message,
+          postUrls: activeNets.map(network => ({ network, status: 'failed' }))
+        });
+        setHistoryList(prev => [failedRecord, ...prev]);
+        setSuccessMessage(null);
+        alert(message);
+        return;
+      }
 
       const newRecord = savePublicationRecord({
         title: title.trim() || 'Publicación de Fútbol',
@@ -126,22 +142,22 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
         status: isScheduled ? 'scheduled' : 'published',
         scheduledTimeBolivia: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined,
         publishedAt: isScheduled ? undefined : new Date().toLocaleString('es-BO', { timeZone: 'America/La_Paz' }) + ' BOT',
-        postUrls: result.results.map((r: any) => ({
+        postUrls: (result.results || []).map((r: any) => ({
           network: r.channel,
           url: r.postUrl,
-          status: 'success'
+          status: r.status === 'published' || r.status === 'success' ? 'success' : 'failed'
         }))
       });
 
       setHistoryList(prev => [newRecord, ...prev]);
-      setSuccessMessage(isScheduled ? '¡Publicación programada con éxito en horario de Bolivia (BOT)!' : '¡Banner y texto publicados con éxito!');
-
+      setSuccessMessage(isScheduled ? 'Publicación programada.' : 'Publicación enviada.');
       setTimeout(() => {
         setSuccessMessage(null);
         setActiveTab('history');
       }, 1500);
     } catch (e) {
       console.error('Error publishing:', e);
+      alert('No se pudo contactar al servidor de publicación. No se registró como publicado.');
     } finally {
       setIsPublishing(false);
     }
