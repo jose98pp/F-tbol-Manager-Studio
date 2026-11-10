@@ -619,6 +619,101 @@ app.get('/api/espn/scoreboard', async (req, res) => {
   }
 });
 
+
+/**
+ * ESPN match summary and official team rosters.
+ * ESPN does not expose lineups for every competition/event; return an explicit
+ * availability flag rather than inventing player data.
+ */
+const espnSummaryCache = new Map<string, { timestamp: number; data: any }>();
+
+app.get('/api/espn/summary', async (req, res) => {
+  try {
+    const league = String(req.query.league || 'bol.1').trim();
+    const eventId = String(req.query.event || '').trim();
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(eventId)) {
+      return res.status(400).json({ error: 'Identificador de partido no válido.' });
+    }
+    if (!/^[a-zA-Z0-9._-]{1,80}$/.test(league)) {
+      return res.status(400).json({ error: 'Liga ESPN no válida.' });
+    }
+
+    const cacheKey = `${league}_${eventId}`;
+    const cached = espnSummaryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 60_000) return res.json(cached.data);
+
+    const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(league)}/summary?event=${encodeURIComponent(eventId)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
+    let espnRes: Response;
+    try {
+      espnRes = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!espnRes.ok) {
+      return res.status(espnRes.status).json({ error: `ESPN summary respondió ${espnRes.status}` });
+    }
+
+    const raw: any = await espnRes.json();
+    const competitors = raw.header?.competitions?.[0]?.competitors || raw.boxscore?.teams || [];
+    const rosterGroups: any[] = Array.isArray(raw.rosters) ? raw.rosters
+      : Array.isArray(raw.boxscore?.players) ? raw.boxscore.players
+      : Array.isArray(raw.roster) ? raw.roster : [];
+
+    const positionCode = (value: any): 'POR' | 'DEF' | 'MED' | 'DEL' => {
+      const p = String(value?.abbreviation || value?.name || value || '').toLowerCase();
+      if (/goal|keeper|gk|por/.test(p)) return 'POR';
+      if (/back|defen|centre.?back|full.?back|cb|lb|rb/.test(p)) return 'DEF';
+      if (/mid|wing|attacking|central|defensive.?mid|cm|dm|am/.test(p)) return 'MED';
+      return 'DEL';
+    };
+
+    const teams = competitors.map((competitor: any) => {
+      const team = competitor.team || competitor;
+      const group = rosterGroups.find((entry: any) => String(entry.team?.id || entry.teamId || entry.id || '') === String(team.id));
+      const rawPlayers = group?.roster || group?.players || group?.athletes || competitor.roster || [];
+      const players = (Array.isArray(rawPlayers) ? rawPlayers : []).map((entry: any, index: number) => {
+        const athlete = entry.athlete || entry.player || entry;
+        const position = athlete.position || entry.position;
+        const starter = entry.starter === true || entry.isStarter === true || entry.status?.type?.name === 'Starter';
+        return {
+          id: String(athlete.id || `${team.id || 'team'}-${index}`),
+          name: athlete.displayName || athlete.fullName || athlete.name || '',
+          number: Number(athlete.jersey || athlete.uniformNumber || entry.jersey || 0),
+          position: positionCode(position),
+          photoUrl: athlete.headshot?.href || athlete.photo || athlete.href || undefined,
+          starter
+        };
+      }).filter((player: any) => player.name);
+
+      return {
+        teamId: String(team.id || ''),
+        teamName: team.displayName || team.name || 'Equipo',
+        logo: team.logo || '',
+        formation: group?.formation || competitor.formation || null,
+        coach: group?.coach?.displayName || competitor.coach?.displayName || '',
+        starters: players.filter((player: any) => player.starter).map(({ starter, ...player }: any) => player).slice(0, 11),
+        substitutes: players.filter((player: any) => !player.starter).map(({ starter, ...player }: any) => player).slice(0, 18),
+        rosterCount: players.length
+      };
+    });
+
+    const payload = {
+      eventId,
+      available: teams.some((team: any) => team.starters.length > 0 || team.substitutes.length > 0),
+      teams,
+      source: 'ESPN',
+      updatedAt: new Date().toISOString()
+    };
+    espnSummaryCache.set(cacheKey, { timestamp: Date.now(), data: payload });
+    return res.json(payload);
+  } catch (error: any) {
+    console.error('Error fetching ESPN match summary:', error);
+    return res.status(500).json({ error: 'No se pudo consultar el resumen y las alineaciones de ESPN.' });
+  }
+});
+
 // Serve frontend with Vite in dev or static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
