@@ -118,3 +118,12 @@ La rama de trabajo incluye una primera base para edición de objetos:
 - Las plantillas personalizadas guardan también el mapa de capas por tipo, de modo que al aplicarlas se recupera su composición y no solamente los datos del partido.
 - Los documentos antiguos que solo contienen `templateData` siguen siendo compatibles; sus capas comienzan con la geometría predeterminada.
 - El autoguardado espera a que termine la restauración inicial para evitar sobrescribir la copia en la nube con el estado vacío del navegador.
+
+
+## ESPN: alineaciones oficiales
+
+- El explorador consulta `GET /api/espn/summary?league=bol.1&event=EVENT_ID` para recuperar los datos de resumen del partido.
+- Cuando ESPN publica los rosters, el modal muestra titulares y suplentes por equipo y permite importar el XI de local o visitante a la plantilla de alineación.
+- Los jugadores importados conservan nombre, dorsal, posición y fotografía cuando ESPN la proporciona; también se guardan en el plantel reutilizable del club.
+- La disponibilidad depende de la competición y del momento de publicación de ESPN. Si no hay XI oficial, la interfaz lo informa y no inventa jugadores.
+- El mapeo de posiciones se adapta a las categorías visuales del editor (POR, DEF, MED y DEL); revisar los datos del proveedor antes de publicar.
