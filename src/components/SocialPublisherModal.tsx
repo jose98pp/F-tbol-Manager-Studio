@@ -48,6 +48,7 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   initialNetwork
 }) => {
   const [activeTab, setActiveTab] = useState<'publish' | 'calendar' | 'history'>('publish');
+  const [publicationMode, setPublicationMode] = useState<'manual' | 'automatic'>('manual');
   const [historyList, setHistoryList] = useState<SocialPostRecord[]>([]);
 
   // Publish Form State
@@ -69,7 +70,7 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
 
   // Scheduling State (Bolivia Time BOT UTC-4)
   const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState('2026-10-04');
+  const [scheduledDate, setScheduledDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
   const [scheduledTime, setScheduledTime] = useState('17:30'); // Bolivia Match time
   const [isPublishing, setIsPublishing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -85,6 +86,19 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   }, [initialCaption]);
 
   if (!isOpen) return null;
+
+  const handleCopyCaption = async () => {
+    if (!caption.trim()) {
+      alert('Escribe o genera el texto antes de copiarlo.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(caption.trim());
+      setSuccessMessage('Texto copiado. Descarga el diseño desde el editor y compártelo manualmente en las redes elegidas.');
+    } catch {
+      alert('El navegador no permitió copiar el texto. Selecciónalo y cópialo manualmente.');
+    }
+  };
 
   const handleToggleNetwork = (net: keyof typeof selectedNetworks) => {
     setSelectedNetworks(prev => ({ ...prev, [net]: !prev[net] }));
@@ -256,6 +270,25 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
               </div>
             )}
 
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950 border border-slate-800">
+              <button type="button" onClick={() => { setPublicationMode('manual'); setSuccessMessage(null); }}
+                className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${publicationMode === 'manual' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>
+                Publicación manual
+              </button>
+              <button type="button" onClick={() => { setPublicationMode('automatic'); setSuccessMessage(null); }}
+                className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${publicationMode === 'automatic' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>
+                Publicación automática
+              </button>
+            </div>
+            {publicationMode === 'manual' ? (
+              <p className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3 text-[11px] text-cyan-100">
+                Modo manual: prepara el copy por red, copia el texto y exporta el diseño desde el editor. La publicación se completa en la aplicación oficial de cada red; no se marcará como publicada aquí.
+              </p>
+            ) : (
+              <p className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-[11px] text-emerald-100">
+                Modo automático: requiere cuentas autorizadas mediante OAuth y adaptadores oficiales. El servidor rechazará la operación mientras falte esa configuración; nunca simulará una publicación exitosa.
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left Column: Accounts & Scheduling */}
               <div className="space-y-4">
@@ -520,21 +553,29 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
                   </div>
                 </div>
 
-                {/* Final Submit Button */}
-                <button
-                  onClick={handlePublishNow}
-                  disabled={isPublishing}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>
-                    {isPublishing
-                      ? 'Enviando publicación...'
-                      : isScheduled
-                      ? `Programar Publicación para ${scheduledTime} BOT`
-                      : 'Publicar Ahora en Redes Seleccionadas'}
-                  </span>
-                </button>
+                {/* Manual and automatic publishing actions */}
+                {publicationMode === 'manual' ? (
+                  <button type="button" onClick={handleCopyCaption}
+                    className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 text-xs transition-all cursor-pointer">
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar texto para publicación manual</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePublishNow}
+                    disabled={isPublishing}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>
+                      {isPublishing
+                        ? 'Enviando publicación...'
+                        : isScheduled
+                        ? `Programar Publicación para ${scheduledTime} BOT`
+                        : 'Publicar automáticamente en redes seleccionadas'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
