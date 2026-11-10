@@ -199,7 +199,7 @@ export const DraggableLayer: React.FC<DraggableLayerProps> = ({
       }`}
       style={{
         ...style,
-        transform: `translate3d(${layer.x}px, ${layer.y}px, 0)`,
+        transform: `translate3d(${layer.x}px, ${layer.y}px, 0) rotate(${layer.rotation || 0}deg)`,
         opacity: layer.opacity,
         zIndex: layer.zIndex,
         ...(layer.width ? { width: `${layer.width}px` } : {}),
