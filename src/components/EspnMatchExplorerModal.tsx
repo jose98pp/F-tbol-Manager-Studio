@@ -17,7 +17,8 @@ import {
   Flame,
   Trophy,
   Upload,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { Club } from '../data/clubs';
 import { TemplateData, FixtureMatch } from '../data/templates';
@@ -64,6 +65,50 @@ interface EspnScoreboardResponse {
   events: EspnMatchEvent[];
 }
 
+interface EspnRosterPlayer {
+  id: string;
+  name: string;
+  number: number;
+  position: 'POR' | 'DEF' | 'MED' | 'DEL';
+  photoUrl?: string;
+}
+
+interface EspnRosterTeam {
+  teamId: string;
+  teamName: string;
+  logo?: string;
+  formation?: string | null;
+  coach?: string;
+  starters: EspnRosterPlayer[];
+  substitutes: EspnRosterPlayer[];
+  rosterCount: number;
+}
+
+interface EspnTeamStatistics {
+  teamId: string;
+  teamName: string;
+  logo?: string;
+  score: string | number | null;
+  statistics: Record<string, string | number>;
+}
+
+interface EspnMatchStatistics {
+  eventId: string;
+  available: boolean;
+  teams: EspnTeamStatistics[];
+  events: Array<{ id: string; type: string; description: string; clock: string; teamId: string; participants: string[] }>;
+  source: string;
+  updatedAt: string;
+}
+
+interface EspnMatchSummary {
+  eventId: string;
+  available: boolean;
+  teams: EspnRosterTeam[];
+  source: string;
+  updatedAt: string;
+}
+
 interface EspnMatchExplorerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -73,6 +118,7 @@ interface EspnMatchExplorerModalProps {
     leagueName: string;
     targetType?: 'auto' | 'versus' | 'result' | 'goal' | 'fixture';
   }) => void;
+  onApplyLineupFromEspn: (params: { match: EspnMatchEvent; leagueName: string; team: EspnRosterTeam }) => void;
 }
 
 const POPULAR_LEAGUES = [
@@ -101,7 +147,8 @@ export const EspnMatchExplorerModal: React.FC<EspnMatchExplorerModalProps> = ({
   isOpen,
   onClose,
   currentTemplateData,
-  onApplyMatchToBanner
+  onApplyMatchToBanner,
+  onApplyLineupFromEspn
 }) => {
   const { customClubs, addCustomClub } = useFirebase();
 
@@ -121,6 +168,13 @@ export const EspnMatchExplorerModal: React.FC<EspnMatchExplorerModalProps> = ({
   // Success / Action feedback state
   const [appliedMatchId, setAppliedMatchId] = useState<string | null>(null);
   const [savedTeamId, setSavedTeamId] = useState<string | null>(null);
+  const [lineupSummaryByMatch, setLineupSummaryByMatch] = useState<Record<string, EspnMatchSummary>>({});
+  const [lineupLoadingMatchId, setLineupLoadingMatchId] = useState<string | null>(null);
+  const [lineupErrorByMatch, setLineupErrorByMatch] = useState<Record<string, string>>({});
+  const [statisticsByMatch, setStatisticsByMatch] = useState<Record<string, EspnMatchStatistics>>({});
+  const [statisticsLoadingMatchId, setStatisticsLoadingMatchId] = useState<string | null>(null);
+  const [statisticsErrorByMatch, setStatisticsErrorByMatch] = useState<Record<string, string>>({});
+
 
   // Missing Club Modal / Form state
   const [showCustomClubModal, setShowCustomClubModal] = useState(false);
@@ -221,6 +275,60 @@ export const EspnMatchExplorerModal: React.FC<EspnMatchExplorerModalProps> = ({
       setTimeout(() => setSavedTeamId(null), 3000);
     } catch (e) {
       console.error('Error saving team to Firestore:', e);
+    }
+  };
+
+  const handleToggleLineups = async (match: EspnMatchEvent) => {
+    if (lineupSummaryByMatch[match.id]) {
+      setLineupSummaryByMatch(current => {
+        const next = { ...current };
+        delete next[match.id];
+        return next;
+      });
+      return;
+    }
+
+    setLineupLoadingMatchId(match.id);
+    setLineupErrorByMatch(current => ({ ...current, [match.id]: '' }));
+    try {
+      const response = await fetch(`/api/espn/summary?league=${encodeURIComponent(selectedLeague)}&event=${encodeURIComponent(match.id)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `ESPN respondió ${response.status}`);
+      setLineupSummaryByMatch(current => ({ ...current, [match.id]: payload as EspnMatchSummary }));
+      if (!payload.available) {
+        setLineupErrorByMatch(current => ({ ...current, [match.id]: 'ESPN todavía no publica las alineaciones de este partido o esta competición no las ofrece.' }));
+      }
+    } catch (error: any) {
+      setLineupErrorByMatch(current => ({ ...current, [match.id]: error.message || 'No se pudieron cargar las alineaciones.' }));
+    } finally {
+      setLineupLoadingMatchId(null);
+    }
+  };
+
+  const handleToggleStatistics = async (match: EspnMatchEvent) => {
+    if (statisticsByMatch[match.id]) {
+      setStatisticsByMatch(current => {
+        const next = { ...current };
+        delete next[match.id];
+        return next;
+      });
+      return;
+    }
+
+    setStatisticsLoadingMatchId(match.id);
+    setStatisticsErrorByMatch(current => ({ ...current, [match.id]: '' }));
+    try {
+      const response = await fetch(`/api/espn/statistics?league=${encodeURIComponent(selectedLeague)}&event=${encodeURIComponent(match.id)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `ESPN respondió ${response.status}`);
+      setStatisticsByMatch(current => ({ ...current, [match.id]: payload as EspnMatchStatistics }));
+      if (!payload.available) {
+        setStatisticsErrorByMatch(current => ({ ...current, [match.id]: 'ESPN todavía no publica estadísticas ni incidencias para este encuentro.' }));
+      }
+    } catch (error: any) {
+      setStatisticsErrorByMatch(current => ({ ...current, [match.id]: error.message || 'No se pudieron cargar las estadísticas.' }));
+    } finally {
+      setStatisticsLoadingMatchId(null);
     }
   };
 
@@ -736,6 +844,115 @@ export const EspnMatchExplorerModal: React.FC<EspnMatchExplorerModalProps> = ({
                         📅 + Fixture
                       </button>
                     </div>
+                  </div>
+
+                  {/* Real match statistics and key events from ESPN */}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => handleToggleStatistics(event)}
+                      disabled={statisticsLoadingMatchId === event.id}
+                      className="w-full sm:w-auto px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {statisticsLoadingMatchId === event.id
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        : <Trophy className="w-3.5 h-3.5" />}
+                      {statisticsLoadingMatchId === event.id ? 'Consultando estadísticas…' : statisticsByMatch[event.id] ? 'Ocultar estadísticas' : 'Ver estadísticas e incidencias'}
+                    </button>
+                    {statisticsErrorByMatch[event.id] && (
+                      <p className="mt-2 text-xs text-amber-300">{statisticsErrorByMatch[event.id]}</p>
+                    )}
+                    {statisticsByMatch[event.id]?.available && (
+                      <div className="mt-3 rounded-xl border border-emerald-500/20 bg-slate-950/70 p-3 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {statisticsByMatch[event.id].teams.map(team => (
+                            <div key={team.teamId} className="rounded-lg bg-slate-900/80 p-3">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-xs font-black text-white truncate">{team.teamName}</span>
+                                <span className="text-sm font-black text-emerald-300">{team.score ?? '—'}</span>
+                              </div>
+                              <div className="space-y-1">
+                                {Object.entries(team.statistics).map(([key, value]) => (
+                                  <div key={key} className="flex justify-between gap-3 text-[10px]">
+                                    <span className="text-slate-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                                    <span className="text-slate-200 font-bold">{value}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {Object.keys(team.statistics).length === 0 && (
+                                <p className="text-[10px] text-slate-500">Estadísticas no disponibles para este equipo.</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {statisticsByMatch[event.id].events.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider font-black text-emerald-300 mb-2">Goles, tarjetas y sustituciones</p>
+                            <div className="space-y-1.5">
+                              {statisticsByMatch[event.id].events.map((item, index) => (
+                                <div key={item.id || index} className="flex items-start gap-2 text-[10px] text-slate-300">
+                                  <span className="text-emerald-300 font-bold shrink-0">{item.clock || '—'}</span>
+                                  <span>{item.description}{item.participants.length ? ` · ${item.participants.join(', ')}` : ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-[9px] text-slate-500">Fuente: ESPN · Actualizado {new Date(statisticsByMatch[event.id].updatedAt).toLocaleTimeString()}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Official ESPN lineups, when the competition exposes them */}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => handleToggleLineups(event)}
+                      disabled={lineupLoadingMatchId === event.id}
+                      className="w-full sm:w-auto px-3 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {lineupLoadingMatchId === event.id
+                        ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        : <Users className="w-3.5 h-3.5" />}
+                      {lineupLoadingMatchId === event.id ? 'Consultando ESPN…' : lineupSummaryByMatch[event.id] ? 'Ocultar alineaciones' : 'Ver alineaciones oficiales'}
+                    </button>
+
+                    {lineupErrorByMatch[event.id] && (
+                      <p className="mt-2 text-xs text-amber-300">{lineupErrorByMatch[event.id]}</p>
+                    )}
+
+                    {lineupSummaryByMatch[event.id]?.available && (
+                      <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {lineupSummaryByMatch[event.id].teams.map((team) => (
+                          <div key={team.teamId} className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-white truncate">{team.teamName}</p>
+                                <p className="text-[10px] text-slate-400">
+                                  {team.formation || 'Formación no indicada'} · {team.starters.length} titulares · {team.substitutes.length} suplentes
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => onApplyLineupFromEspn({ match: event, leagueName: activeLeagueInfo.name, team })}
+                                disabled={team.starters.length === 0}
+                                className="shrink-0 px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black disabled:opacity-40"
+                              >
+                                Usar XI
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                              {team.starters.map((player) => (
+                                <div key={player.id} className="flex items-center gap-1.5 text-[10px] text-slate-300 min-w-0">
+                                  <span className="w-5 text-right text-cyan-300 font-bold">{player.number || '—'}</span>
+                                  <span className="truncate">{player.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                            {team.starters.length === 0 && (
+                              <p className="text-[10px] text-slate-500">Titulares aún no disponibles en ESPN.</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

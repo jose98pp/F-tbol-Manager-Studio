@@ -14,7 +14,7 @@ import { SavedTemplatePreset } from '../data/savedTemplates';
 import { BrandProfile } from '../data/brands';
 import { SocialPostRecord } from '../data/publicationHistory';
 import { MediaAsset } from '../data/mediaLibrary';
-import { TemplateData } from '../data/templates';
+import { WorkspaceSnapshot } from '../data/workspace';
 import { Club } from '../data/clubs';
 
 // ==========================================
@@ -249,14 +249,15 @@ export async function deleteMediaFromFirestore(
 
 export async function saveWorkspaceToFirestore(
   userId: string,
-  templateData: TemplateData
+  snapshot: WorkspaceSnapshot
 ): Promise<void> {
   const docPath = `users/${userId}/workspace/current`;
   try {
     const docRef = doc(db, 'users', userId, 'workspace', 'current');
     await setDoc(docRef, {
       userId,
-      templateData,
+      templateData: snapshot.data,
+      layersByTemplate: snapshot.layersByTemplate,
       updatedAt: new Date().toISOString()
     });
   } catch (error) {
@@ -266,14 +267,20 @@ export async function saveWorkspaceToFirestore(
 
 export async function loadWorkspaceFromFirestore(
   userId: string
-): Promise<TemplateData | null> {
+): Promise<WorkspaceSnapshot | null> {
   const docPath = `users/${userId}/workspace/current`;
   try {
     const docRef = doc(db, 'users', userId, 'workspace', 'current');
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      const data = snap.data();
-      return (data.templateData as TemplateData) || null;
+      const saved = snap.data();
+      // Backward-compatible with workspace documents created before layer persistence.
+      if (saved.templateData) {
+        return {
+          data: saved.templateData as WorkspaceSnapshot['data'],
+          layersByTemplate: (saved.layersByTemplate as WorkspaceSnapshot['layersByTemplate']) || {}
+        };
+      }
     }
     return null;
   } catch (error) {

@@ -1,4 +1,5 @@
 import { TemplateData, INITIAL_TEMPLATE_DATA, TemplateType } from './templates';
+import { CanvasLayer } from './layers';
 
 export interface SavedTemplatePreset {
   id: string;
@@ -9,6 +10,7 @@ export interface SavedTemplatePreset {
   badgeTag: string;
   previewColor: string;
   data: TemplateData;
+  layersByTemplate?: Record<string, CanvasLayer[]>;
   isCustom?: boolean;
   createdAt?: string;
 }

@@ -58,6 +58,7 @@ La aplicación cuenta con **almacenamiento persistente en Firebase Firestore**:
   - `media`: Biblioteca de recursos, escudos y fotos personalizadas.
   - `workspace`: Estado actual de edición del lienzo auto-guardado en la nube.
 - **Autenticación con Google**: Permite iniciar sesión para sincronizar automáticamente los datos entre múltiples dispositivos y navegadores.
+- **Espacio de trabajo completo**: También conserva la geometría de cada capa por tipo de plantilla (posición X/Y, ancho, alto, rotación, opacidad, visibilidad y bloqueo) para recuperar el diseño al volver a iniciar sesión.
 - **Modo sin conexión / respaldo local**: Si el usuario no ha iniciado sesión, los datos continúan guardándose localmente y se migran automáticamente a Firestore al iniciar sesión.
 
 ## Publicación en redes: estado y seguridad
@@ -110,3 +111,28 @@ La rama de trabajo incluye una primera base para edición de objetos:
 6. Añadir pruebas automatizadas y validar compilación antes de desplegar.
 
 **Importante:** esta rama es desarrollo en curso. La publicación automática real todavía no está disponible y requiere credenciales oficiales configuradas en el entorno del servidor; nunca deben guardarse tokens en el frontend ni en el repositorio.
+
+## Persistencia del lienzo (etapa en desarrollo)
+
+- El documento `users/{userId}/workspace/current` conserva los datos de la plantilla activa y `layersByTemplate` para restaurar posiciones, dimensiones y rotaciones de los objetos.
+- Las plantillas personalizadas guardan también el mapa de capas por tipo, de modo que al aplicarlas se recupera su composición y no solamente los datos del partido.
+- Los documentos antiguos que solo contienen `templateData` siguen siendo compatibles; sus capas comienzan con la geometría predeterminada.
+- El autoguardado espera a que termine la restauración inicial para evitar sobrescribir la copia en la nube con el estado vacío del navegador.
+
+
+## ESPN: alineaciones oficiales
+
+- El explorador consulta `GET /api/espn/summary?league=bol.1&event=EVENT_ID` para recuperar los datos de resumen del partido.
+- Cuando ESPN publica los rosters, el modal muestra titulares y suplentes por equipo y permite importar el XI de local o visitante a la plantilla de alineación.
+- Los jugadores importados conservan nombre, dorsal, posición y fotografía cuando ESPN la proporciona; también se guardan en el plantel reutilizable del club.
+- La disponibilidad depende de la competición y del momento de publicación de ESPN. Si no hay XI oficial, la interfaz lo informa y no inventa jugadores.
+- El mapeo de posiciones se adapta a las categorías visuales del editor (POR, DEF, MED y DEL); revisar los datos del proveedor antes de publicar.
+
+
+## ESPN: estadísticas e incidencias del partido
+
+- El explorador consulta `GET /api/espn/statistics?league=bol.1&event=EVENT_ID` para obtener las estadísticas por equipo desde el resumen oficial de ESPN.
+- Muestra el marcador y las métricas que el proveedor entregue (por ejemplo, posesión, remates, remates al arco, córners y faltas), además de incidencias disponibles como goles, tarjetas y sustituciones.
+- La respuesta se almacena en caché durante 60 segundos y el endpoint valida liga e identificador de evento y aplica un tiempo máximo de espera.
+- La cobertura depende de ESPN y de la competición. Los campos ausentes se omiten; no se generan estadísticas ni incidencias ficticias.
+- Antes de publicar un gráfico, contrastar los valores con la ficha oficial del encuentro, especialmente en competiciones con cobertura parcial.
