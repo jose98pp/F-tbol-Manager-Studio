@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   MediaAsset,
   OFFICIAL_STADIUM_MEDIA,
-  PLAYER_SILHOUETTES,
-  getUserUploadedMedia,
-  saveUserMedia,
-  deleteUserMedia
+  PLAYER_SILHOUETTES
 } from '../data/mediaLibrary';
 import { CLUBS, Club } from '../data/clubs';
 import { ClubBadge } from './ClubBadge';
-import { X, Image as ImageIcon, Upload, Plus, Trash2, Check, ExternalLink, Shield, MapPin, User, Sparkles } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
+import { X, Image as ImageIcon, Upload, Plus, Trash2, Check, ExternalLink, Shield, MapPin, User, Sparkles, Cloud } from 'lucide-react';
 
 interface MediaLibraryModalProps {
   isOpen: boolean;
@@ -22,17 +20,13 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   onClose,
   onInsertAssetAsLayer
 }) => {
+  const { userMedia, addUserMediaAsset, removeUserMediaAsset, isCloudConnected } = useFirebase();
   const [activeTab, setActiveTab] = useState<'shields' | 'stadiums' | 'players' | 'custom'>('shields');
-  const [userMedia, setUserMedia] = useState<MediaAsset[]>([]);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [newMediaName, setNewMediaName] = useState('');
   const [newMediaUrl, setNewMediaUrl] = useState('');
   const [newMediaTag, setNewMediaTag] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
-
-  useEffect(() => {
-    setUserMedia(getUserUploadedMedia());
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -41,39 +35,38 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const dataUrl = event.target?.result as string;
-      const saved = saveUserMedia({
+      await addUserMediaAsset({
         name: file.name.replace(/\.[^/.]+$/, ''),
         url: dataUrl,
+        category: 'user-upload',
         tag: 'Subido desde dispositivo'
       });
-      setUserMedia(prev => [saved, ...prev]);
       setShowUploadForm(false);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
+  const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMediaUrl.trim() || !newMediaName.trim()) return;
 
-    const saved = saveUserMedia({
+    await addUserMediaAsset({
       name: newMediaName.trim(),
       url: newMediaUrl.trim(),
+      category: 'user-upload',
       tag: newMediaTag.trim() || 'Enlace externo'
     });
-    setUserMedia(prev => [saved, ...prev]);
     setNewMediaName('');
     setNewMediaUrl('');
     setNewMediaTag('');
     setShowUploadForm(false);
   };
 
-  const handleDeleteUserMedia = (id: string, e: React.MouseEvent) => {
+  const handleDeleteUserMedia = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteUserMedia(id);
-    setUserMedia(prev => prev.filter(m => m.id !== id));
+    await removeUserMediaAsset(id);
   };
 
   // Filter bolivian clubs by search
@@ -97,6 +90,17 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-cyan-400 font-mono">
                   Guardados por equipo
                 </span>
+                {isCloudConnected ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-emerald-400" />
+                    <span>Firebase Cloud Sync</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-slate-500" />
+                    <span>Local</span>
+                  </span>
+                )}
               </h2>
               <p className="text-[11px] text-slate-400">
                 Organiza escudos oficiales, estadios bolivianos y fotos para reutilizar en cualquier diseño

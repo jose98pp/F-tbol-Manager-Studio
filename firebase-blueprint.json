@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with email and metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "SavedTemplate": {
+      "title": "SavedTemplate",
+      "description": "Custom sports banner template preset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "enum": ["previa", "alineacion", "gol", "resultado", "resumen"] },
+        "type": { "type": "string", "enum": ["fixture", "versus", "result", "standings", "lineup", "goal"] },
+        "badgeTag": { "type": "string", "maxLength": 50 },
+        "data": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "category", "type", "data"]
+    },
+    "BrandProfile": {
+      "title": "BrandProfile",
+      "description": "Custom sports channel branding profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "channelHandle": { "type": "string", "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 150 },
+        "theme": { "type": "string", "enum": ["neon-gaming", "tv-broadcast", "fire-red", "electric-blue"] },
+        "primaryColor": { "type": "string", "maxLength": 30 },
+        "secondaryColor": { "type": "string", "maxLength": 30 },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "connectedAccounts": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "channelHandle", "theme"]
+    },
+    "PublicationRecord": {
+      "title": "PublicationRecord",
+      "description": "Publication history item or scheduled post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "templateType": { "type": "string", "maxLength": 50 },
+        "channelName": { "type": "string", "maxLength": 100 },
+        "networks": { "type": "array" },
+        "caption": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["published", "scheduled", "failed"] },
+        "scheduledTimeBolivia": { "type": "string", "maxLength": 50 },
+        "errorMessage": { "type": "string", "maxLength": 500 },
+        "publishedAt": { "type": "string", "maxLength": 50 },
+        "postUrls": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "templateType", "status"]
+    },
+    "MediaAsset": {
+      "title": "MediaAsset",
+      "description": "User custom uploaded media, stadiums, or team shields",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["stadium", "shield", "player", "user-upload"] },
+        "url": { "type": "string", "maxLength": 2000 },
+        "clubOrRegion": { "type": "string", "maxLength": 100 },
+        "tag": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "category", "url"]
+    },
+    "WorkspaceState": {
+      "title": "WorkspaceState",
+      "description": "User current banner workspace state",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "templateData": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "templateData"]
+    },
+    "CustomClub": {
+      "title": "CustomClub",
+      "description": "Custom club or shield saved by user for recurring use",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "shortName": { "type": "string", "maxLength": 40 },
+        "crestUrl": { "type": "string", "maxLength": 500000 },
+        "city": { "type": "string", "maxLength": 100 },
+        "country": { "type": "string", "maxLength": 100 },
+        "league": { "type": "string", "maxLength": 100 },
+        "primaryColor": { "type": "string", "maxLength": 30 },
+        "secondaryColor": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "crestUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document"
+    },
+    "/users/{userId}/savedTemplates/{templateId}": {
+      "schema": { "$ref": "#/entities/SavedTemplate" },
+      "description": "Saved templates belonging to the user"
+    },
+    "/users/{userId}/brandProfiles/{brandId}": {
+      "schema": { "$ref": "#/entities/BrandProfile" },
+      "description": "Brand profiles belonging to the user"
+    },
+    "/users/{userId}/publications/{publicationId}": {
+      "schema": { "$ref": "#/entities/PublicationRecord" },
+      "description": "Publication history and schedules belonging to the user"
+    },
+    "/users/{userId}/media/{mediaId}": {
+      "schema": { "$ref": "#/entities/MediaAsset" },
+      "description": "User custom media library items"
+    },
+    "/users/{userId}/workspace/{workspaceId}": {
+      "schema": { "$ref": "#/entities/WorkspaceState" },
+      "description": "Active banner workspace snapshot"
+    },
+    "/users/{userId}/customClubs/{clubId}": {
+      "schema": { "$ref": "#/entities/CustomClub" },
+      "description": "Custom clubs and shields created or uploaded by the user"
+    }
+  }
+}

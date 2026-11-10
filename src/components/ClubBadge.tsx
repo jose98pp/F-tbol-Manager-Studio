@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Club, getClubById } from '../data/clubs';
+import { useFirebase } from '../context/FirebaseContext';
 
 interface ClubBadgeProps {
   club?: Club;
@@ -30,7 +31,8 @@ export const ClubBadge: React.FC<ClubBadgeProps> = ({
   onClick,
   title
 }) => {
-  const currentClub = club || (clubId ? getClubById(clubId) : null);
+  const { customClubs } = useFirebase();
+  const currentClub = club || (clubId ? (customClubs?.find(c => c.id === clubId) || getClubById(clubId)) : null);
   const [imgError, setImgError] = useState(false);
 
   if (!currentClub) {

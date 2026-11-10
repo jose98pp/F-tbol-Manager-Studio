@@ -23,6 +23,7 @@ export interface Club {
   badgeUrl?: string; // Real transparent high-res PNG/SVG
   badgeSvg: string; // Crisp SVG fallback
   squad?: Player[];
+  isCustom?: boolean;
 }
 
 export const CLUBS: Club[] = [

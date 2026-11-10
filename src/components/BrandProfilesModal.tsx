@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrandProfile, DEFAULT_BRAND_PROFILES } from '../data/brands';
-import { X, Tv, Plus, Check, Radio, Palette, Share2, Smartphone, Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
+import { X, Tv, Plus, Check, Radio, Palette, Share2, Smartphone, Facebook, Instagram, Youtube, Twitter, Cloud } from 'lucide-react';
 
 interface BrandProfilesModalProps {
   isOpen: boolean;
@@ -15,17 +16,8 @@ export const BrandProfilesModal: React.FC<BrandProfilesModalProps> = ({
   activeBrandId,
   onSelectBrand
 }) => {
-  const [brands, setBrands] = useState<BrandProfile[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('futbol_banner_brand_profiles_v1');
-        return raw ? JSON.parse(raw) : DEFAULT_BRAND_PROFILES;
-      } catch (e) {
-        return DEFAULT_BRAND_PROFILES;
-      }
-    }
-    return DEFAULT_BRAND_PROFILES;
-  });
+  const { brandProfiles, addBrandProfile, isCloudConnected } = useFirebase();
+  const brands = brandProfiles.length > 0 ? brandProfiles : DEFAULT_BRAND_PROFILES;
 
   const [showNewBrandForm, setShowNewBrandForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -45,7 +37,7 @@ export const BrandProfilesModal: React.FC<BrandProfilesModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleCreateBrand = (e: React.FormEvent) => {
+  const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
 
@@ -72,14 +64,7 @@ export const BrandProfilesModal: React.FC<BrandProfilesModalProps> = ({
       }
     };
 
-    const updated = [...brands, newBrand];
-    setBrands(updated);
-    try {
-      localStorage.setItem('futbol_banner_brand_profiles_v1', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Error saving brand profiles:', e);
-    }
-
+    await addBrandProfile(newBrand);
     onSelectBrand(newBrand);
     setShowNewBrandForm(false);
   };
@@ -99,6 +84,17 @@ export const BrandProfilesModal: React.FC<BrandProfilesModalProps> = ({
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-purple-300 font-mono">
                   Multi-Brand
                 </span>
+                {isCloudConnected ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-emerald-400" />
+                    <span>Firebase Cloud Sync</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-slate-500" />
+                    <span>Local</span>
+                  </span>
+                )}
               </h2>
               <p className="text-[11px] text-slate-400">
                 Cambia de canal, logo, paleta de colores y cuentas conectadas con un solo clic

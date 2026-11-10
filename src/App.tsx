@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { toPng, toJpeg, toBlob } from 'html-to-image';
 import { INITIAL_TEMPLATE_DATA, TemplateData, TemplateType } from './data/templates';
@@ -37,6 +37,9 @@ import { BatchGeneratorModal } from './components/BatchGeneratorModal';
 import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { SocialPublisherModal } from './components/SocialPublisherModal';
 import { AiSocialCaptionsPanel } from './components/AiSocialCaptionsPanel';
+import { FirebaseAuthButton } from './components/FirebaseAuthButton';
+import { EspnMatchExplorerModal } from './components/EspnMatchExplorerModal';
+import { useFirebase } from './context/FirebaseContext';
 import { FixtureMatch } from './data/templates';
 
 import {
@@ -67,7 +70,9 @@ import {
   Tv,
   Bookmark,
   Image as ImageIcon,
-  Share2
+  Share2,
+  Globe2,
+  Zap
 } from 'lucide-react';
 
 export default function App() {
@@ -90,6 +95,8 @@ export default function App() {
   const [selectedLayerId, setSelectedLayerId] = useState<string | undefined>();
 
   // Modals
+  const { addCustomClub } = useFirebase();
+  const [isEspnModalOpen, setIsEspnModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isMultiFormatModalOpen, setIsMultiFormatModalOpen] = useState(false);
   const [isSavedTemplatesModalOpen, setIsSavedTemplatesModalOpen] = useState(false);
@@ -121,6 +128,27 @@ export default function App() {
   const [mobileView, setMobileView] = useState<'canvas' | 'editor'>('canvas');
   const [isTeamsBarCollapsed, setIsTeamsBarCollapsed] = useState(false);
   const [showCanvasGuides, setShowCanvasGuides] = useState(false);
+
+  const { user, saveWorkspaceSnapshot, loadWorkspaceSnapshot } = useFirebase();
+
+  // Restore saved workspace from Firestore when user logs in
+  useEffect(() => {
+    if (!user) return;
+    loadWorkspaceSnapshot().then((saved) => {
+      if (saved) {
+        setData(saved);
+      }
+    });
+  }, [user]);
+
+  // Debounced auto-save of active banner to Firestore
+  useEffect(() => {
+    if (!user) return;
+    const timeout = setTimeout(() => {
+      saveWorkspaceSnapshot(data);
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [user, data]);
 
   const currentCompetition = getCompetitionById(data.competitionId);
 
@@ -248,6 +276,153 @@ export default function App() {
     handleUpdateCurrentLayers([...currentL, newLayer]);
     setSelectedLayerId(newLayer.id);
     setIsMediaLibraryModalOpen(false);
+  };
+
+  // 1-Click Apply from ESPN Matches Explorer
+  const handleApplyEspnMatch = async ({
+    match,
+    leagueName,
+    targetType = 'auto'
+  }: {
+    match: any;
+    leagueName: string;
+    targetType?: 'auto' | 'versus' | 'result' | 'goal' | 'fixture';
+  }) => {
+    // Generate valid persistent Club models for home and away teams
+    const homeColor = match.homeTeam.color ? `#${match.homeTeam.color}` : '#0284c7';
+    const awayColor = match.awayTeam.color ? `#${match.awayTeam.color}` : '#facc15';
+
+    const homeClub: Club = {
+      id: `espn-${match.homeTeam.id}`,
+      name: match.homeTeam.displayName || match.homeTeam.name,
+      shortName: (match.homeTeam.abbreviation || match.homeTeam.name).slice(0, 14).toUpperCase(),
+      category: 'international',
+      primaryColor: homeColor,
+      secondaryColor: '#ffffff',
+      accentColor: '#000000',
+      city: match.venue?.city || '',
+      stadium: match.venue?.name,
+      badgeUrl: match.homeTeam.logo,
+      badgeSvg: `<svg viewBox="0 0 100 120" fill="none"><circle cx="50" cy="60" r="45" fill="${homeColor}"/><text x="50" y="65" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold">${(match.homeTeam.abbreviation || match.homeTeam.name).slice(0, 3).toUpperCase()}</text></svg>`,
+      isCustom: true
+    };
+
+    const awayClub: Club = {
+      id: `espn-${match.awayTeam.id}`,
+      name: match.awayTeam.displayName || match.awayTeam.name,
+      shortName: (match.awayTeam.abbreviation || match.awayTeam.name).slice(0, 14).toUpperCase(),
+      category: 'international',
+      primaryColor: awayColor,
+      secondaryColor: '#ffffff',
+      accentColor: '#000000',
+      city: match.venue?.city || '',
+      stadium: match.venue?.name,
+      badgeUrl: match.awayTeam.logo,
+      badgeSvg: `<svg viewBox="0 0 100 120" fill="none"><circle cx="50" cy="60" r="45" fill="${awayColor}"/><text x="50" y="65" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold">${(match.awayTeam.abbreviation || match.awayTeam.name).slice(0, 3).toUpperCase()}</text></svg>`,
+      isCustom: true
+    };
+
+    // Auto-save both teams to Firestore so they are reusable and cached everywhere
+    await addCustomClub(homeClub);
+    await addCustomClub(awayClub);
+
+    const effectiveType =
+      targetType !== 'auto'
+        ? targetType
+        : data.type === 'versus' || data.type === 'result' || data.type === 'goal' || data.type === 'fixture'
+        ? data.type
+        : match.status.state === 'post' || match.status.state === 'in'
+        ? 'result'
+        : 'versus';
+
+    const timeStr = match.timeBolivia ? `${match.timeBolivia} (BOT)` : match.status.shortDetail || '15:30';
+    const statusStr =
+      match.status.state === 'in'
+        ? match.status.shortDetail || 'EN VIVO'
+        : match.status.state === 'post'
+        ? 'FINAL'
+        : 'HORARIO BOLIVIA';
+
+    if (effectiveType === 'fixture') {
+      const newFixMatch: FixtureMatch = {
+        id: `fix-${match.id}`,
+        day: 'FECHA ESPN',
+        homeClubId: homeClub.id,
+        awayClubId: awayClub.id,
+        dateStr: `${match.timeBolivia || '15:30'} BOT`,
+        stadium: match.venue?.name || '',
+        homeScore: match.homeTeam.score,
+        awayScore: match.awayTeam.score,
+        status: match.status.shortDetail || (match.timeBolivia ? `${match.timeBolivia} BOT` : '15:30')
+      };
+      setData(prev => ({
+        ...prev,
+        type: 'fixture',
+        tournament: leagueName,
+        fixtureMatches: [newFixMatch, ...prev.fixtureMatches.filter(m => m.id !== newFixMatch.id)]
+      }));
+      setActiveTab('fixture');
+    } else if (effectiveType === 'goal') {
+      setData(prev => ({
+        ...prev,
+        type: 'goal',
+        tournament: leagueName,
+        goal: {
+          ...prev.goal,
+          scoringClubId: homeClub.id,
+          opponentClubId: awayClub.id,
+          homeScore: match.homeTeam.score ?? 1,
+          awayScore: match.awayTeam.score ?? 0,
+          minute: match.status.detail ? match.status.detail.replace(/[^0-9]/g, '') + "'" : "65'"
+        }
+      }));
+      setActiveTab('goal');
+    } else if (effectiveType === 'result') {
+      setData(prev => ({
+        ...prev,
+        type: 'result',
+        tournament: leagueName,
+        singleMatch: {
+          ...prev.singleMatch,
+          homeClubId: homeClub.id,
+          awayClubId: awayClub.id,
+          homeScore: match.homeTeam.score ?? 0,
+          awayScore: match.awayTeam.score ?? 0,
+          statusBadge: 'FINALIZADO',
+          stadium: match.venue?.name || prev.singleMatch.stadium,
+          city: match.venue?.city || prev.singleMatch.city,
+          matchTime: timeStr
+        }
+      }));
+      setActiveTab('match');
+    } else {
+      // Versus / Partido
+      setData(prev => ({
+        ...prev,
+        type: 'versus',
+        tournament: leagueName,
+        singleMatch: {
+          ...prev.singleMatch,
+          homeClubId: homeClub.id,
+          awayClubId: awayClub.id,
+          homeScore: match.homeTeam.score ?? 0,
+          awayScore: match.awayTeam.score ?? 0,
+          statusBadge: statusStr,
+          stadium: match.venue?.name || prev.singleMatch.stadium,
+          city: match.venue?.city || prev.singleMatch.city,
+          matchTime: timeStr
+        }
+      }));
+      setActiveTab('match');
+    }
+
+    // Celebration feedback
+    confetti({
+      particleCount: 40,
+      spread: 60,
+      origin: { y: 0.8 },
+      colors: [homeColor, awayColor, '#22c55e']
+    });
   };
 
   // Handle club selection from modal
@@ -506,6 +681,9 @@ export default function App() {
 
         {/* Action Header Buttons */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Firebase Cloud Auth & Sync Button */}
+          <FirebaseAuthButton />
+
           {/* Brand Profile Switcher Button */}
           <button
             onClick={() => setIsBrandModalOpen(true)}
@@ -539,6 +717,17 @@ export default function App() {
           >
             <Shield className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="hidden lg:inline">Escudos</span>
+          </button>
+
+          {/* ESPN Live Scores & Real Crests Explorer */}
+          <button
+            onClick={() => setIsEspnModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-xs font-bold text-red-300 transition-colors cursor-pointer shrink-0"
+            title="Explorar partidos del mundo en ESPN y cargar datos en el banner con 1 clic"
+          >
+            <Globe2 className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span>Partidos ESPN</span>
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           </button>
 
           {/* Publish & Calendar Central Button */}
@@ -726,6 +915,7 @@ export default function App() {
               setIsClubPickerOpen(true);
             }}
             onOpenClubInfo={openClubInfo}
+            onOpenEspnExplorer={() => setIsEspnModalOpen(true)}
             isCollapsed={isTeamsBarCollapsed}
             onToggleCollapse={() => setIsTeamsBarCollapsed(c => !c)}
           />
@@ -1520,6 +1710,14 @@ export default function App() {
         activeBrand={activeBrand}
         initialCaption={initialPublisherText}
         initialNetwork={initialPublisherNetwork}
+      />
+
+      {/* ESPN Worldwide Match & Real Crest Explorer */}
+      <EspnMatchExplorerModal
+        isOpen={isEspnModalOpen}
+        onClose={() => setIsEspnModalOpen(false)}
+        currentTemplateData={data}
+        onApplyMatchToBanner={handleApplyEspnMatch}
       />
     </div>
   );

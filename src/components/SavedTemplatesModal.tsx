@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   SavedTemplatePreset,
-  DEFAULT_SAVED_PRESETS,
-  getCustomPresets,
-  saveCustomPreset,
-  deleteCustomPreset
+  DEFAULT_SAVED_PRESETS
 } from '../data/savedTemplates';
 import { TemplateData } from '../data/templates';
-import { X, Bookmark, Plus, Check, Trash2, Calendar, Swords, Users, Flame, CheckCircle, Trophy, Sparkles } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
+import { X, Bookmark, Plus, Check, Trash2, Calendar, Swords, Users, Flame, CheckCircle, Trophy, Sparkles, Cloud, CloudCheck } from 'lucide-react';
 
 interface SavedTemplatesModalProps {
   isOpen: boolean;
@@ -22,28 +20,24 @@ export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
   currentData,
   onApplyTemplate
 }) => {
+  const { savedTemplates, addSavedTemplate, removeSavedTemplate, isCloudConnected } = useFirebase();
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'previa' | 'alineacion' | 'gol' | 'resultado' | 'resumen'>('all');
-  const [customPresets, setCustomPresets] = useState<SavedTemplatePreset[]>([]);
   const [isSavingCurrent, setIsSavingCurrent] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateCategory, setNewTemplateCategory] = useState<'previa' | 'alineacion' | 'gol' | 'resultado' | 'resumen'>('previa');
 
-  useEffect(() => {
-    setCustomPresets(getCustomPresets());
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
-  const allPresets = [...customPresets, ...DEFAULT_SAVED_PRESETS];
+  const allPresets = [...savedTemplates, ...DEFAULT_SAVED_PRESETS];
   const filteredPresets = selectedCategory === 'all'
     ? allPresets
     : allPresets.filter(p => p.category === selectedCategory);
 
-  const handleSaveCurrent = (e: React.FormEvent) => {
+  const handleSaveCurrent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTemplateName.trim()) return;
 
-    const saved = saveCustomPreset({
+    await addSavedTemplate({
       name: newTemplateName.trim(),
       description: `Plantilla personalizada basada en ${currentData.tournament || 'Fútbol'}`,
       category: newTemplateCategory,
@@ -53,15 +47,13 @@ export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
       data: currentData
     });
 
-    setCustomPresets(prev => [saved, ...prev]);
     setNewTemplateName('');
     setIsSavingCurrent(false);
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteCustomPreset(id);
-    setCustomPresets(prev => prev.filter(p => p.id !== id));
+    await removeSavedTemplate(id);
   };
 
   const getCategoryIcon = (cat: string) => {
@@ -90,6 +82,17 @@ export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-yellow-400 font-mono">
                   {allPresets.length} disponibles
                 </span>
+                {isCloudConnected ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-emerald-400" />
+                    <span>Firebase Cloud Sync</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1" title="Inicia sesión con Google para sincronizar en Firestore">
+                    <Cloud className="w-3 h-3 text-slate-500" />
+                    <span>Local (Conecta para la Nube)</span>
+                  </span>
+                )}
               </h2>
               <p className="text-[11px] text-slate-400">
                 Reutiliza al instante diseños de previa, alineación, gol, resultado y resumen

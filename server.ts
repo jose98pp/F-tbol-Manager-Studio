@@ -439,14 +439,184 @@ Reglas por red:
   }
 });
 
-// API: Social publishing is intentionally disabled until real provider adapters and OAuth
-// credentials are configured. Never fabricate post URLs or report a simulated publish as success.
-app.post('/api/social/publish', (_req, res) => {
-  return res.status(501).json({
-    success: false,
-    code: 'SOCIAL_PUBLISHING_NOT_CONFIGURED',
-    message: 'La publicación real todavía no está configurada. Conecta y autoriza las cuentas sociales antes de publicar o programar contenido.'
-  });
+// API: ESPN Soccer Leagues Catalog
+const ESPN_SOCCER_LEAGUES = [
+  // Bolivia & CONMEBOL
+  { id: 'bol.1', name: 'Liga Boliviana (División Profesional)', country: 'Bolivia', region: 'Sudamérica', priority: 1 },
+  { id: 'conmebol.libertadores', name: 'CONMEBOL Copa Libertadores', country: 'Sudamérica', region: 'Sudamérica', priority: 2 },
+  { id: 'conmebol.sudamericana', name: 'CONMEBOL Copa Sudamericana', country: 'Sudamérica', region: 'Sudamérica', priority: 3 },
+  { id: 'fifa.worldq.conmebol', name: 'Eliminatorias Sudamericanas (CONMEBOL)', country: 'Sudamérica', region: 'Selecciones', priority: 4 },
+  { id: 'arg.1', name: 'Liga Profesional Argentina', country: 'Argentina', region: 'Sudamérica', priority: 5 },
+  { id: 'bra.1', name: 'Brasileirão Série A', country: 'Brasil', region: 'Sudamérica', priority: 6 },
+  { id: 'col.1', name: 'Liga BetPlay Dimayor', country: 'Colombia', region: 'Sudamérica', priority: 7 },
+  { id: 'chi.1', name: 'Primera División de Chile', country: 'Chile', region: 'Sudamérica', priority: 8 },
+  { id: 'per.1', name: 'Liga 1 Perú', country: 'Perú', region: 'Sudamérica', priority: 9 },
+
+  // Europa & Internacional
+  { id: 'uefa.champions', name: 'UEFA Champions League', country: 'Europa', region: 'Europa', priority: 10 },
+  { id: 'uefa.europa', name: 'UEFA Europa League', country: 'Europa', region: 'Europa', priority: 11 },
+  { id: 'esp.1', name: 'LaLiga (España)', country: 'España', region: 'Europa', priority: 12 },
+  { id: 'eng.1', name: 'Premier League (Inglaterra)', country: 'Inglaterra', region: 'Europa', priority: 13 },
+  { id: 'ita.1', name: 'Serie A (Italia)', country: 'Italia', region: 'Europa', priority: 14 },
+  { id: 'ger.1', name: 'Bundesliga (Alemania)', country: 'Alemania', region: 'Europa', priority: 15 },
+  { id: 'fra.1', name: 'Ligue 1 (Francia)', country: 'Francia', region: 'Europa', priority: 16 },
+
+  // Norteamérica & Otras
+  { id: 'mex.1', name: 'Liga MX (México)', country: 'México', region: 'Concacaf', priority: 17 },
+  { id: 'usa.1', name: 'Major League Soccer (MLS)', country: 'EE.UU.', region: 'Concacaf', priority: 18 },
+  { id: 'concacaf.champions', name: 'Concacaf Champions Cup', country: 'Norteamérica', region: 'Concacaf', priority: 19 },
+  { id: 'fifa.world', name: 'Copa Mundial FIFA', country: 'Mundial', region: 'Selecciones', priority: 20 },
+  { id: 'conmebol.america', name: 'Copa América', country: 'América', region: 'Selecciones', priority: 21 },
+  { id: 'uefa.euro', name: 'Eurocopa UEFA', country: 'Europa', region: 'Selecciones', priority: 22 }
+];
+
+app.get('/api/espn/leagues', (_req, res) => {
+  return res.json(ESPN_SOCCER_LEAGUES);
+});
+
+// Cache for ESPN scoreboard responses: key -> { timestamp: number, data: any }
+const espnCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 45 * 1000; // 45 seconds cache
+
+app.get('/api/espn/scoreboard', async (req, res) => {
+  try {
+    const league = (req.query.league as string) || 'bol.1';
+    const dateParam = (req.query.date as string) || ''; // format YYYYMMDD or YYYY-MM-DD
+    const cleanDate = dateParam.replace(/-/g, '');
+
+    const cacheKey = `${league}_${cleanDate}`;
+    const cached = espnCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return res.json(cached.data);
+    }
+
+    let url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(league)}/scoreboard`;
+    if (cleanDate) {
+      url += `?dates=${encodeURIComponent(cleanDate)}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const espnRes = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    clearTimeout(timeout);
+
+    if (!espnRes.ok) {
+      return res.status(espnRes.status).json({
+        error: `ESPN API returned status ${espnRes.status}`,
+        league,
+        events: []
+      });
+    }
+
+    const raw = await espnRes.json();
+    const leagueInfo = raw.leagues?.[0] || {};
+    const leagueLogo = leagueInfo.logos?.[0]?.href || '';
+
+    const events = (raw.events || []).map((ev: any) => {
+      const competition = ev.competitions?.[0] || {};
+      const competitors = competition.competitors || [];
+      const homeComp = competitors.find((c: any) => c.homeAway === 'home') || competitors[0] || {};
+      const awayComp = competitors.find((c: any) => c.homeAway === 'away') || competitors[1] || {};
+
+      const homeTeam = homeComp.team || {};
+      const awayTeam = awayComp.team || {};
+
+      // Convert match date to Bolivia BOT time representation
+      const matchDate = new Date(ev.date || competition.date || Date.now());
+      const boliviaTimeStr = matchDate.toLocaleTimeString('es-BO', {
+        timeZone: 'America/La_Paz',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }) + ' BOT';
+
+      const boliviaDateStr = matchDate.toLocaleDateString('es-BO', {
+        timeZone: 'America/La_Paz',
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short'
+      }).toUpperCase();
+
+      const statusType = competition.status?.type || {};
+      const isLive = statusType.state === 'in';
+      const isCompleted = statusType.completed === true || statusType.state === 'post';
+
+      return {
+        id: ev.id,
+        name: ev.name || `${homeTeam.displayName || 'Local'} vs ${awayTeam.displayName || 'Visita'}`,
+        shortName: ev.shortName || `${homeTeam.abbreviation || 'LOC'} vs ${awayTeam.abbreviation || 'VIS'}`,
+        rawDate: ev.date,
+        date: ev.date,
+        boliviaDateStr,
+        boliviaTimeStr,
+        dateBolivia: `${boliviaDateStr}, ${boliviaTimeStr}`,
+        timeBolivia: boliviaTimeStr,
+        venue: {
+          name: competition.venue?.fullName || 'Por confirmar',
+          city: competition.venue?.address?.city || ''
+        },
+        venueCity: competition.venue?.address?.city || '',
+        status: {
+          state: statusType.state || 'pre', // 'pre', 'in', 'post'
+          detail: statusType.detail || boliviaTimeStr,
+          shortDetail: statusType.shortDetail || boliviaTimeStr,
+          clock: competition.status?.displayClock || '',
+          isLive,
+          isCompleted
+        },
+        homeTeam: {
+          id: homeTeam.id || `team-home-${ev.id}`,
+          name: homeTeam.name || homeTeam.displayName || 'Equipo Local',
+          displayName: homeTeam.displayName || homeTeam.name || 'Equipo Local',
+          shortName: homeTeam.shortDisplayName || homeTeam.name || 'Local',
+          abbreviation: homeTeam.abbreviation || 'LOC',
+          logo: homeTeam.logo || (homeTeam.id ? `https://a.espncdn.com/i/teamlogos/soccer/500/${homeTeam.id}.png` : ''),
+          score: homeComp.score !== undefined ? parseInt(homeComp.score, 10) : undefined,
+          color: homeTeam.color ? `${homeTeam.color}`.replace('#', '') : undefined
+        },
+        awayTeam: {
+          id: awayTeam.id || `team-away-${ev.id}`,
+          name: awayTeam.name || awayTeam.displayName || 'Equipo Visitante',
+          displayName: awayTeam.displayName || awayTeam.name || 'Equipo Visitante',
+          shortName: awayTeam.shortDisplayName || awayTeam.name || 'Visita',
+          abbreviation: awayTeam.abbreviation || 'VIS',
+          logo: awayTeam.logo || (awayTeam.id ? `https://a.espncdn.com/i/teamlogos/soccer/500/${awayTeam.id}.png` : ''),
+          score: awayComp.score !== undefined ? parseInt(awayComp.score, 10) : undefined,
+          color: awayTeam.color ? `${awayTeam.color}`.replace('#', '') : undefined
+        },
+        league: {
+          id: leagueInfo.id || league,
+          name: leagueInfo.name || league,
+          slug: leagueInfo.slug || league,
+          logo: leagueLogo
+        }
+      };
+    });
+
+    const payload = {
+      league: {
+        id: leagueInfo.id || league,
+        name: leagueInfo.name || league,
+        slug: leagueInfo.slug || league,
+        logo: leagueLogo,
+        season: leagueInfo.season?.displayName || ''
+      },
+      count: events.length,
+      events
+    };
+
+    espnCache.set(cacheKey, { timestamp: Date.now(), data: payload });
+    return res.json(payload);
+  } catch (error: any) {
+    console.error('Error fetching ESPN scoreboard:', error);
+    return res.status(500).json({ error: 'Failed to fetch ESPN match data', events: [] });
+  }
 });
 
 // Serve frontend with Vite in dev or static files in production

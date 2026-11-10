@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-  SocialPostRecord,
-  getPublicationHistory,
-  savePublicationRecord,
-  updatePublicationRecord,
-  deletePublicationRecord
-} from '../data/publicationHistory';
+import { SocialPostRecord } from '../data/publicationHistory';
 import { BrandProfile } from '../data/brands';
 import { TemplateData } from '../data/templates';
+import { useFirebase } from '../context/FirebaseContext';
 import {
   X,
   Send,
@@ -28,7 +23,8 @@ import {
   Radio,
   Sparkles,
   Share2,
-  Copy
+  Copy,
+  Cloud
 } from 'lucide-react';
 
 interface SocialPublisherModalProps {
@@ -48,9 +44,10 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   initialCaption = '',
   initialNetwork
 }) => {
+  const { publicationHistory, addPublicationRecord, removePublicationRecord, isCloudConnected } = useFirebase();
   const [activeTab, setActiveTab] = useState<'publish' | 'calendar' | 'history'>('publish');
   const [publicationMode, setPublicationMode] = useState<'manual' | 'automatic'>('manual');
-  const [historyList, setHistoryList] = useState<SocialPostRecord[]>([]);
+  const historyList = publicationHistory;
 
   // Publish Form State
   const [title, setTitle] = useState(`${data.type.toUpperCase()}: ${data.tournament}`);
@@ -75,10 +72,6 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   const [scheduledTime, setScheduledTime] = useState('17:30'); // Bolivia Match time
   const [isPublishing, setIsPublishing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    setHistoryList(getPublicationHistory());
-  }, [isOpen]);
 
   useEffect(() => {
     if (initialCaption) {
@@ -131,7 +124,7 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
 
       if (!res.ok || result.success !== true) {
         const message = result.message || 'No se pudo publicar. Verifica la conexión de las cuentas sociales.';
-        const failedRecord = savePublicationRecord({
+        await addPublicationRecord({
           title: title.trim() || 'Publicación de Fútbol',
           templateType: data.type,
           channelName: activeBrand.name,
@@ -142,13 +135,12 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
           errorMessage: message,
           postUrls: activeNets.map(network => ({ network, status: 'failed' }))
         });
-        setHistoryList(prev => [failedRecord, ...prev]);
         setSuccessMessage(null);
         alert(message);
         return;
       }
 
-      const newRecord = savePublicationRecord({
+      await addPublicationRecord({
         title: title.trim() || 'Publicación de Fútbol',
         templateType: data.type,
         channelName: activeBrand.name,
@@ -164,7 +156,6 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
         }))
       });
 
-      setHistoryList(prev => [newRecord, ...prev]);
       setSuccessMessage(isScheduled ? 'Publicación programada.' : 'Publicación enviada.');
       setTimeout(() => {
         setSuccessMessage(null);
@@ -182,9 +173,8 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
     alert('Los reintentos estarán disponibles cuando se configuren las integraciones oficiales y la autorización OAuth de cada red social.');
   };
 
-  const handleDeleteRecord = (id: string) => {
-    const updated = deletePublicationRecord(id);
-    setHistoryList(updated);
+  const handleDeleteRecord = async (id: string) => {
+    await removePublicationRecord(id);
   };
 
   return (

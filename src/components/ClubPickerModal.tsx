@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Club, CLUBS, getClubById } from '../data/clubs';
 import { ClubBadge } from './ClubBadge';
-import { Search, X, Upload, Shield, Check, Plus, Globe2, Loader2, History, Star, Info } from 'lucide-react';
+import { Search, X, Upload, Shield, Check, Plus, Globe2, Loader2, History, Star, Info, Cloud } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
 
 interface ClubPickerModalProps {
   isOpen: boolean;
@@ -20,10 +21,10 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
   title = 'Seleccionar Escudo del Equipo',
   onOpenClubInfo
 }) => {
+  const { customClubs: cloudCustomClubs, addCustomClub } = useFirebase();
   const [activeTab, setActiveTab] = useState<'catalog' | 'web-search'>('catalog');
   const [searchTerm, setSearchTerm] = useState('');
-  const [category, setCategory] = useState<'all' | 'bolivia' | 'conmebol' | 'international'>('all');
-  const [customClubs, setCustomClubs] = useState<Club[]>([]);
+  const [category, setCategory] = useState<'all' | 'custom' | 'bolivia' | 'conmebol' | 'international'>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamShort, setNewTeamShort] = useState('');
@@ -68,7 +69,7 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const allAvailableClubs = [...customClubs, ...CLUBS];
+  const allAvailableClubs = [...cloudCustomClubs, ...CLUBS];
 
   const filteredClubs = allAvailableClubs.filter(club => {
     const matchesSearch =
@@ -76,7 +77,9 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
       club.shortName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (club.city && club.city.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesCategory = category === 'all' || club.category === category;
+    const matchesCategory =
+      category === 'all' ||
+      (category === 'custom' ? (club.isCustom || cloudCustomClubs.some(c => c.id === club.id)) : club.category === category);
     return matchesSearch && matchesCategory;
   });
 
@@ -107,7 +110,7 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
     }
   };
 
-  const handleCreateCustomClub = (e: React.FormEvent) => {
+  const handleCreateCustomClub = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeamName.trim()) return;
 
@@ -123,10 +126,11 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
       badgeSvg: `<svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M50 5 L90 20 L90 75 Q50 115 50 115 Q10 75 10 20 Z" fill="${newTeamColor}" stroke="#ffffff" stroke-width="4"/>
         <text x="50" y="65" text-anchor="middle" fill="#ffffff" font-family="Arial Black, sans-serif" font-weight="900" font-size="14">${(newTeamShort || newTeamName).slice(0, 3).toUpperCase()}</text>
-      </svg>`
+      </svg>`,
+      isCustom: true
     };
 
-    setCustomClubs(prev => [newClub, ...prev]);
+    await addCustomClub(newClub);
     handlePickClub(newClub);
     setShowUploadForm(false);
   };
@@ -149,7 +153,7 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
   };
 
   // Select an escudo found on the web
-  const handleSelectWebEscudo = (result: { title: string; url: string }) => {
+  const handleSelectWebEscudo = async (result: { title: string; url: string }) => {
     const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(result.url)}`;
 
     const newClub: Club = {
@@ -161,10 +165,11 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
       secondaryColor: '#ffffff',
       accentColor: '#facc15',
       badgeUrl: proxiedUrl,
-      badgeSvg: `<svg viewBox="0 0 100 120" fill="none"><circle cx="50" cy="60" r="45" fill="#0284c7"/></svg>`
+      badgeSvg: `<svg viewBox="0 0 100 120" fill="none"><circle cx="50" cy="60" r="45" fill="#0284c7"/></svg>`,
+      isCustom: true
     };
 
-    setCustomClubs(prev => [newClub, ...prev]);
+    await addCustomClub(newClub);
     handlePickClub(newClub);
   };
 
@@ -283,6 +288,19 @@ export const ClubPickerModal: React.FC<ClubPickerModalProps> = ({
                 >
                   Todos
                 </button>
+                {cloudCustomClubs.length > 0 && (
+                  <button
+                    onClick={() => setCategory('custom')}
+                    className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                      category === 'custom'
+                        ? 'bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/20'
+                        : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30'
+                    }`}
+                  >
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>Mis Escudos ({cloudCustomClubs.length})</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setCategory('bolivia')}
                   className={`px-3 py-1.5 rounded-lg font-medium transition-all ${

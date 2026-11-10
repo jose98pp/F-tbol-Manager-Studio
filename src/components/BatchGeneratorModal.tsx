@@ -4,8 +4,8 @@ import { ChannelBranding, BANNER_FORMATS } from '../data/branding';
 import { getClubById } from '../data/clubs';
 import { getCompetitionById } from '../data/competitions';
 import { ClubBadge } from './ClubBadge';
-import { savePublicationRecord } from '../data/publicationHistory';
-import { X, Layers, Download, Calendar, CheckCircle2, Swords, Sparkles, Send } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
+import { X, Layers, Download, Calendar, CheckCircle2, Swords, Sparkles, Send, Cloud } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface BatchGeneratorModalProps {
@@ -25,6 +25,7 @@ export const BatchGeneratorModal: React.FC<BatchGeneratorModalProps> = ({
   onLoadMatchIntoCanvas,
   onOpenPublisher
 }) => {
+  const { addPublicationRecord, isCloudConnected } = useFirebase();
   const [selectedMatches, setSelectedMatches] = useState<string[]>(
     data.fixtureMatches.map(m => m.id)
   );
@@ -46,19 +47,19 @@ export const BatchGeneratorModal: React.FC<BatchGeneratorModalProps> = ({
     setSelectedMatches(data.fixtureMatches.map(m => m.id));
   };
 
-  const handleScheduleAllToCalendar = () => {
+  const handleScheduleAllToCalendar = async () => {
     setIsProcessing(true);
     try {
       // Create scheduled entries for each selected match
-      selectedMatches.forEach((matchId, index) => {
+      for (const matchId of selectedMatches) {
         const match = data.fixtureMatches.find(m => m.id === matchId);
-        if (!match) return;
+        if (!match) continue;
 
         const home = getClubById(match.homeClubId);
         const away = getClubById(match.awayClubId);
 
         // Previa
-        savePublicationRecord({
+        await addPublicationRecord({
           title: `Previa Lote: ${home.name} vs ${away.name}`,
           templateType: 'versus',
           channelName: branding.channelName,
@@ -71,7 +72,7 @@ export const BatchGeneratorModal: React.FC<BatchGeneratorModalProps> = ({
 
         // Resultado
         if (includeResults) {
-          savePublicationRecord({
+          await addPublicationRecord({
             title: `Resultado Lote: ${home.name} vs ${away.name}`,
             templateType: 'result',
             channelName: branding.channelName,
@@ -82,7 +83,7 @@ export const BatchGeneratorModal: React.FC<BatchGeneratorModalProps> = ({
             postUrls: []
           });
         }
-      });
+      }
 
       setBatchSuccess(true);
       confetti({

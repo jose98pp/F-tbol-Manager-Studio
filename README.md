@@ -46,16 +46,19 @@ El servidor Express sirve los archivos compilados desde `dist/`.
 - Exportación PNG/JPEG y varios formatos.
 - Generación asistida de textos y hashtags para redes sociales.
 
-## Persistencia: limitación actual
+## Persistencia y Almacenamiento en la Nube con Firebase
 
-Las plantillas personalizadas, recursos subidos e historial de publicaciones se guardan actualmente en `localStorage`. Esto significa que:
+La aplicación cuenta con **almacenamiento persistente en Firebase Firestore**:
 
-- Los datos pertenecen al navegador y dispositivo donde se crearon.
-- No se sincronizan entre usuarios o dispositivos.
-- Borrar los datos del navegador puede eliminarlos.
-- Las imágenes cargadas como datos locales pueden agotar la cuota de almacenamiento del navegador.
-
-Para producción se recomienda incorporar autenticación, base de datos y almacenamiento de objetos (por ejemplo, S3 compatible).
+- **Base de datos Firestore Enterprise**: Vinculada a la base de datos `ai-studio-ftbolbannerstudi-c6ffcace-3f68-42ec-9214-ab4d5e6db5b2` en el proyecto `temporal-moon-llxdt`.
+- **Colecciones persistentes por usuario** (`/users/{userId}/*`):
+  - `savedTemplates`: Plantillas deportivas personalizadas (alineaciones, previas, goles, marcadores).
+  - `brandProfiles`: Marcas y canales configurados con logos, colores y cuentas sociales.
+  - `publications`: Historial de publicaciones y programación con horario de Bolivia (BOT UTC-4).
+  - `media`: Biblioteca de recursos, escudos y fotos personalizadas.
+  - `workspace`: Estado actual de edición del lienzo auto-guardado en la nube.
+- **Autenticación con Google**: Permite iniciar sesión para sincronizar automáticamente los datos entre múltiples dispositivos y navegadores.
+- **Modo sin conexión / respaldo local**: Si el usuario no ha iniciado sesión, los datos continúan guardándose localmente y se migran automáticamente a Firestore al iniciar sesión.
 
 ## Publicación en redes: estado y seguridad
 

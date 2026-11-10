@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación para la integración de la API de ESPN (partidos en vivo, nombres y escudos oficiales de ligas de todo el mundo), explorador visual con carga en un clic a las plantillas del editor, y gestor de respaldo en Firebase Firestore para equipos y escudos personalizados.",
+  "updatedAt":  "2026-11-10T19:20:28.097463348Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

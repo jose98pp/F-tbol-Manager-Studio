@@ -15,7 +15,8 @@ import {
   Shuffle,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Globe2
 } from 'lucide-react';
 
 interface ActiveBannerTeamsBarProps {
@@ -28,6 +29,7 @@ interface ActiveBannerTeamsBarProps {
     standingsIndex?: number;
   }) => void;
   onOpenClubInfo: (club: Club) => void;
+  onOpenEspnExplorer?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -37,6 +39,7 @@ export const ActiveBannerTeamsBar: React.FC<ActiveBannerTeamsBarProps> = ({
   onUpdateData,
   onOpenClubPicker,
   onOpenClubInfo,
+  onOpenEspnExplorer,
   isCollapsed = false,
   onToggleCollapse
 }) => {
@@ -167,6 +170,17 @@ export const ActiveBannerTeamsBar: React.FC<ActiveBannerTeamsBarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {onOpenEspnExplorer && (
+            <button
+              onClick={onOpenEspnExplorer}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/50 text-[11px] font-bold transition-colors cursor-pointer"
+              title="Explorar y cargar partidos de ESPN con escudos oficiales en 1 clic"
+            >
+              <Globe2 className="w-3 h-3 text-red-400" />
+              <span>Partidos ESPN</span>
+            </button>
+          )}
+
           {(data.type === 'versus' || data.type === 'result' || data.type === 'fixture') && (
             <button
               onClick={handleRandomizeClubs}
