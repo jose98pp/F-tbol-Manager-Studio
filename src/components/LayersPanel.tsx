@@ -40,6 +40,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 }) => {
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [customText, setCustomText] = useState('');
+  const selectedLayer = layers.find(layer => layer.id === selectedLayerId);
 
   // Sort layers by zIndex descending (highest on top like Photoshop/Figma)
   const sortedLayers = [...layers].sort((a, b) => b.zIndex - a.zIndex);
@@ -56,6 +57,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     onUpdateLayers(
       layers.map(l => (l.id === id ? { ...l, isVisible: !l.isVisible } : l))
     );
+  };
+
+  const handleDimensionChange = (id: string, key: 'width' | 'height', raw: string) => {
+    const value = raw.trim() === '' ? undefined : Math.max(24, Math.min(2400, Number(raw)));
+    if (value !== undefined && !Number.isFinite(value)) return;
+    onUpdateLayers(layers.map(layer => layer.id === id ? { ...layer, [key]: value } : layer));
   };
 
   const handleOpacityChange = (id: string, opacity: number) => {
@@ -216,6 +223,25 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           </form>
         )}
       </div>
+
+      {selectedLayer && (
+        <div className="mx-2 mt-2 p-3 rounded-xl border border-cyan-500/30 bg-slate-950 space-y-2">
+          <div className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Propiedades del objeto seleccionado</div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[10px] text-slate-400">Ancho (px)
+              <input type="number" min="24" max="2400" value={selectedLayer.width ?? ''} placeholder="Auto"
+                onChange={e => handleDimensionChange(selectedLayer.id, 'width', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-white text-xs" />
+            </label>
+            <label className="text-[10px] text-slate-400">Alto (px)
+              <input type="number" min="24" max="2400" value={selectedLayer.height ?? ''} placeholder="Auto"
+                onChange={e => handleDimensionChange(selectedLayer.id, 'height', e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-white text-xs" />
+            </label>
+          </div>
+          <p className="text-[10px] text-slate-500">También puedes arrastrar el tirador de la esquina inferior derecha en el lienzo. Deja el campo vacío para volver al tamaño automático.</p>
+        </div>
+      )}
 
       {/* Layers List (Top to Bottom) */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
