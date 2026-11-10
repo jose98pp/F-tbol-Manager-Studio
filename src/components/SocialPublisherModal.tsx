@@ -163,29 +163,8 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
     }
   };
 
-  const handleRetryFailedPost = (record: SocialPostRecord) => {
-    // Only retry the failed networks, preventing duplication of already published channels
-    const failedNetworks = record.postUrls.filter(p => p.status === 'failed').map(p => p.network);
-    const retryNetworks = failedNetworks.length > 0 ? failedNetworks : record.networks;
-
-    const updatedUrls = record.postUrls.map(p => {
-      if (p.status === 'failed') {
-        let newUrl = '';
-        if (p.network === 'twitter') newUrl = `https://x.com/sports_bo/status/${Date.now()}`;
-        if (p.network === 'facebook') newUrl = `https://www.facebook.com/posts/${Date.now()}`;
-        return { ...p, status: 'success' as const, url: newUrl };
-      }
-      return p;
-    });
-
-    const updatedList = updatePublicationRecord(record.id, {
-      status: 'published',
-      publishedAt: new Date().toLocaleString('es-BO', { timeZone: 'America/La_Paz' }) + ' BOT',
-      errorMessage: undefined,
-      postUrls: updatedUrls
-    });
-
-    setHistoryList(updatedList);
+  const handleRetryFailedPost = async (_record: SocialPostRecord) => {
+    alert('Los reintentos estarán disponibles cuando se configuren las integraciones oficiales y la autorización OAuth de cada red social.');
   };
 
   const handleDeleteRecord = (id: string) => {
