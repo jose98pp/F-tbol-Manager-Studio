@@ -1702,7 +1702,10 @@ export default function App() {
         currentLayersByTemplate={layersByTemplate}
         onApplyTemplate={(newTemplateData, savedLayers) => {
           setData(newTemplateData);
-          if (savedLayers) setLayersByTemplate((current) => ({ ...current, ...savedLayers }));
+          setLayersByTemplate((current) => savedLayers
+            ? { ...current, ...savedLayers }
+            : { ...current, [newTemplateData.type]: getDefaultLayersForTemplate(newTemplateData.type) }
+          );
         }}
       />
 
