@@ -40,6 +40,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 }) => {
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [customText, setCustomText] = useState('');
+  const selectedLayer = layers.find(layer => layer.id === selectedLayerId);
 
   // Sort layers by zIndex descending (highest on top like Photoshop/Figma)
   const sortedLayers = [...layers].sort((a, b) => b.zIndex - a.zIndex);
@@ -58,6 +59,13 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     );
   };
 
+  const handleDimensionChange = (id: string, key: 'x' | 'y' | 'width' | 'height' | 'rotation', raw: string) => {
+    const value = raw.trim() === '' && (key === 'width' || key === 'height' || key === 'rotation') ? undefined : Number(raw);
+    const boundedValue = value === undefined ? undefined : key === 'width' || key === 'height' ? Math.max(24, Math.min(2400, value)) : key === 'rotation' ? Math.max(-180, Math.min(180, value)) : Math.max(-2400, Math.min(2400, value));
+    if (boundedValue !== undefined && !Number.isFinite(boundedValue)) return;
+    onUpdateLayers(layers.map(layer => layer.id === id ? { ...layer, [key]: boundedValue } : layer));
+  };
+
   const handleOpacityChange = (id: string, opacity: number) => {
     onUpdateLayers(
       layers.map(l => (l.id === id ? { ...l, opacity } : l))
@@ -67,7 +75,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   const handleResetLayer = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     onUpdateLayers(
-      layers.map(l => (l.id === id ? { ...l, x: 0, y: 0, opacity: 1, isLocked: false, isVisible: true } : l))
+      layers.map(l => (l.id === id ? { ...l, x: 0, y: 0, width: undefined, height: undefined, rotation: 0, opacity: 1, isLocked: false, isVisible: true } : l))
     );
   };
 
@@ -216,6 +224,26 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           </form>
         )}
       </div>
+
+      {selectedLayer && (
+        <div className="mx-2 mt-2 p-3 rounded-xl border border-cyan-500/30 bg-slate-950 space-y-2">
+          <div className="text-[10px] font-black uppercase tracking-wider text-cyan-300">Propiedades del objeto seleccionado</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(['x', 'y', 'width', 'height', 'rotation'] as const).map(key => (
+              <label key={key} className="text-[10px] text-slate-400">
+                {key === 'x' ? 'Posición X' : key === 'y' ? 'Posición Y' : key === 'width' ? 'Ancho (px)' : key === 'height' ? 'Alto (px)' : 'Rotación (°)'}
+                <input type="number" min={key === 'width' || key === 'height' ? 24 : key === 'rotation' ? -180 : -2400}
+                  max={key === 'width' || key === 'height' ? 2400 : key === 'rotation' ? 180 : 2400}
+                  value={selectedLayer[key] ?? (key === 'x' || key === 'y' ? 0 : '')}
+                  placeholder={key === 'width' || key === 'height' ? 'Auto' : '0'}
+                  onChange={e => handleDimensionChange(selectedLayer.id, key, e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-white text-xs" />
+              </label>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-500">Arrastra el objeto para moverlo y el tirador de la esquina inferior derecha para redimensionarlo. El tamaño vacío vuelve al modo automático.</p>
+        </div>
+      )}
 
       {/* Layers List (Top to Bottom) */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">

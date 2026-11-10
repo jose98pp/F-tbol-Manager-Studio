@@ -27,7 +27,8 @@ import {
   Twitter,
   Radio,
   Sparkles,
-  Share2
+  Share2,
+  Copy
 } from 'lucide-react';
 
 interface SocialPublisherModalProps {
@@ -48,6 +49,7 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
   initialNetwork
 }) => {
   const [activeTab, setActiveTab] = useState<'publish' | 'calendar' | 'history'>('publish');
+  const [publicationMode, setPublicationMode] = useState<'manual' | 'automatic'>('manual');
   const [historyList, setHistoryList] = useState<SocialPostRecord[]>([]);
 
   // Publish Form State
@@ -69,7 +71,7 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
 
   // Scheduling State (Bolivia Time BOT UTC-4)
   const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState('2026-10-04');
+  const [scheduledDate, setScheduledDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()));
   const [scheduledTime, setScheduledTime] = useState('17:30'); // Bolivia Match time
   const [isPublishing, setIsPublishing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -86,24 +88,35 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleCopyCaption = async () => {
+    if (!caption.trim()) {
+      alert('Escribe o genera el texto antes de copiarlo.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(caption.trim());
+      setSuccessMessage('Texto copiado. Descarga el diseño desde el editor y compártelo manualmente en las redes elegidas.');
+    } catch {
+      alert('El navegador no permitió copiar el texto. Selecciónalo y cópialo manualmente.');
+    }
+  };
+
   const handleToggleNetwork = (net: keyof typeof selectedNetworks) => {
     setSelectedNetworks(prev => ({ ...prev, [net]: !prev[net] }));
   };
 
   const handlePublishNow = async () => {
-    setIsPublishing(true);
     const activeNets = Object.entries(selectedNetworks)
       .filter(([_, active]) => active)
       .map(([name]) => name as 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'twitter');
 
     if (activeNets.length === 0) {
-      alert('Por favor selecciona al menos una red social conectada.');
-      setIsPublishing(false);
+      alert('Por favor selecciona al menos una red social.');
       return;
     }
 
+    setIsPublishing(true);
     try {
-      // Call backend publish simulation
       const res = await fetch('/api/social/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,8 +127,26 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
           scheduledFor: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined
         })
       });
+      const result = await res.json().catch(() => ({}));
 
-      const result = await res.json();
+      if (!res.ok || result.success !== true) {
+        const message = result.message || 'No se pudo publicar. Verifica la conexión de las cuentas sociales.';
+        const failedRecord = savePublicationRecord({
+          title: title.trim() || 'Publicación de Fútbol',
+          templateType: data.type,
+          channelName: activeBrand.name,
+          networks: activeNets,
+          caption: caption.trim(),
+          status: 'failed',
+          scheduledTimeBolivia: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined,
+          errorMessage: message,
+          postUrls: activeNets.map(network => ({ network, status: 'failed' }))
+        });
+        setHistoryList(prev => [failedRecord, ...prev]);
+        setSuccessMessage(null);
+        alert(message);
+        return;
+      }
 
       const newRecord = savePublicationRecord({
         title: title.trim() || 'Publicación de Fútbol',
@@ -126,50 +157,29 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
         status: isScheduled ? 'scheduled' : 'published',
         scheduledTimeBolivia: isScheduled ? `${scheduledDate} ${scheduledTime} BOT` : undefined,
         publishedAt: isScheduled ? undefined : new Date().toLocaleString('es-BO', { timeZone: 'America/La_Paz' }) + ' BOT',
-        postUrls: result.results.map((r: any) => ({
+        postUrls: (result.results || []).map((r: any) => ({
           network: r.channel,
           url: r.postUrl,
-          status: 'success'
+          status: r.status === 'published' || r.status === 'success' ? 'success' : 'failed'
         }))
       });
 
       setHistoryList(prev => [newRecord, ...prev]);
-      setSuccessMessage(isScheduled ? '¡Publicación programada con éxito en horario de Bolivia (BOT)!' : '¡Banner y texto publicados con éxito!');
-
+      setSuccessMessage(isScheduled ? 'Publicación programada.' : 'Publicación enviada.');
       setTimeout(() => {
         setSuccessMessage(null);
         setActiveTab('history');
       }, 1500);
     } catch (e) {
       console.error('Error publishing:', e);
+      alert('No se pudo contactar al servidor de publicación. No se registró como publicado.');
     } finally {
       setIsPublishing(false);
     }
   };
 
-  const handleRetryFailedPost = (record: SocialPostRecord) => {
-    // Only retry the failed networks, preventing duplication of already published channels
-    const failedNetworks = record.postUrls.filter(p => p.status === 'failed').map(p => p.network);
-    const retryNetworks = failedNetworks.length > 0 ? failedNetworks : record.networks;
-
-    const updatedUrls = record.postUrls.map(p => {
-      if (p.status === 'failed') {
-        let newUrl = '';
-        if (p.network === 'twitter') newUrl = `https://x.com/sports_bo/status/${Date.now()}`;
-        if (p.network === 'facebook') newUrl = `https://www.facebook.com/posts/${Date.now()}`;
-        return { ...p, status: 'success' as const, url: newUrl };
-      }
-      return p;
-    });
-
-    const updatedList = updatePublicationRecord(record.id, {
-      status: 'published',
-      publishedAt: new Date().toLocaleString('es-BO', { timeZone: 'America/La_Paz' }) + ' BOT',
-      errorMessage: undefined,
-      postUrls: updatedUrls
-    });
-
-    setHistoryList(updatedList);
+  const handleRetryFailedPost = async (_record: SocialPostRecord) => {
+    alert('Los reintentos estarán disponibles cuando se configuren las integraciones oficiales y la autorización OAuth de cada red social.');
   };
 
   const handleDeleteRecord = (id: string) => {
@@ -261,6 +271,25 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
               </div>
             )}
 
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-950 border border-slate-800">
+              <button type="button" onClick={() => { setPublicationMode('manual'); setSuccessMessage(null); }}
+                className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${publicationMode === 'manual' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>
+                Publicación manual
+              </button>
+              <button type="button" onClick={() => { setPublicationMode('automatic'); setSuccessMessage(null); }}
+                className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${publicationMode === 'automatic' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}>
+                Publicación automática
+              </button>
+            </div>
+            {publicationMode === 'manual' ? (
+              <p className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3 text-[11px] text-cyan-100">
+                Modo manual: prepara el copy por red, copia el texto y exporta el diseño desde el editor. La publicación se completa en la aplicación oficial de cada red; no se marcará como publicada aquí.
+              </p>
+            ) : (
+              <p className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-[11px] text-emerald-100">
+                Modo automático: requiere cuentas autorizadas mediante OAuth y adaptadores oficiales. El servidor rechazará la operación mientras falte esa configuración; nunca simulará una publicación exitosa.
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left Column: Accounts & Scheduling */}
               <div className="space-y-4">
@@ -525,21 +554,29 @@ export const SocialPublisherModal: React.FC<SocialPublisherModalProps> = ({
                   </div>
                 </div>
 
-                {/* Final Submit Button */}
-                <button
-                  onClick={handlePublishNow}
-                  disabled={isPublishing}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>
-                    {isPublishing
-                      ? 'Enviando publicación...'
-                      : isScheduled
-                      ? `Programar Publicación para ${scheduledTime} BOT`
-                      : 'Publicar Ahora en Redes Seleccionadas'}
-                  </span>
-                </button>
+                {/* Manual and automatic publishing actions */}
+                {publicationMode === 'manual' ? (
+                  <button type="button" onClick={handleCopyCaption}
+                    className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 text-xs transition-all cursor-pointer">
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar texto para publicación manual</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePublishNow}
+                    disabled={isPublishing}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>
+                      {isPublishing
+                        ? 'Enviando publicación...'
+                        : isScheduled
+                        ? `Programar Publicación para ${scheduledTime} BOT`
+                        : 'Publicar automáticamente en redes seleccionadas'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

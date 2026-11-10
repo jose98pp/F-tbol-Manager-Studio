@@ -17,51 +17,9 @@ export interface SocialPostRecord {
   bannerThumbnail?: string;
 }
 
-const LOCAL_STORAGE_PUBLICATIONS_KEY = 'futbol_banner_publication_history_v1';
+const LOCAL_STORAGE_PUBLICATIONS_KEY = 'futbol_banner_publication_history_v2';
 
-export const INITIAL_PUBLICATION_RECORDS: SocialPostRecord[] = [
-  {
-    id: 'post-101',
-    title: 'Previa Fecha 6: Bolívar vs The Strongest',
-    templateType: 'versus',
-    channelName: 'JoseCPP98 Deportes',
-    networks: ['facebook', 'tiktok', 'youtube'],
-    caption: '🔥 ¡CLÁSICO PACEÑO IMPERDIBLE! Bolívar vs The Strongest por la punta del torneo. ¿Quién se queda con la gloria? Transmisión completa por JoseCPP98 Deportes.',
-    status: 'published',
-    publishedAt: '2026-09-29 14:00 BOT',
-    postUrls: [
-      { network: 'facebook', url: 'https://www.facebook.com/JoseCPP98/posts/8920192841', status: 'success' },
-      { network: 'tiktok', url: 'https://www.tiktok.com/@josecpp98_deportes/video/739182940182', status: 'success' },
-      { network: 'youtube', url: 'https://www.youtube.com/post/Ugkx92182018a', status: 'success' }
-    ]
-  },
-  {
-    id: 'post-102',
-    title: 'Alineación Confirmada: Bolívar',
-    templateType: 'lineup',
-    channelName: 'JoseCPP98 Deportes',
-    networks: ['tiktok', 'instagram'],
-    caption: '📋 ¡LOS 11 CONFIRMADOS! Así salta a la cancha la academia para el clásico de hoy.',
-    status: 'scheduled',
-    scheduledTimeBolivia: '2026-10-04 16:30 BOT',
-    postUrls: []
-  },
-  {
-    id: 'post-103',
-    title: '¡GOLAZO! 1-0 Ramiro Vaca',
-    templateType: 'goal',
-    channelName: 'JoseCPP98 Deportes',
-    networks: ['twitter', 'facebook'],
-    caption: '⚽🔥 ¡GOOOOLAZO DE BOLÍVAR! Ramiro Vaca clava un derechazo al ángulo al minuto 38.',
-    status: 'failed',
-    errorMessage: 'Tiempo de espera agotado al conectar con API de X / Twitter (Token expirado)',
-    publishedAt: '2026-09-28 18:22 BOT',
-    postUrls: [
-      { network: 'facebook', url: 'https://www.facebook.com/JoseCPP98/posts/8920192899', status: 'success' },
-      { network: 'twitter', status: 'failed' }
-    ]
-  }
-];
+export const INITIAL_PUBLICATION_RECORDS: SocialPostRecord[] = [];
 
 export function getPublicationHistory(): SocialPostRecord[] {
   if (typeof window === 'undefined') return INITIAL_PUBLICATION_RECORDS;
