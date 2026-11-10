@@ -58,6 +58,7 @@ La aplicación cuenta con **almacenamiento persistente en Firebase Firestore**:
   - `media`: Biblioteca de recursos, escudos y fotos personalizadas.
   - `workspace`: Estado actual de edición del lienzo auto-guardado en la nube.
 - **Autenticación con Google**: Permite iniciar sesión para sincronizar automáticamente los datos entre múltiples dispositivos y navegadores.
+- **Espacio de trabajo completo**: También conserva la geometría de cada capa por tipo de plantilla (posición X/Y, ancho, alto, rotación, opacidad, visibilidad y bloqueo) para recuperar el diseño al volver a iniciar sesión.
 - **Modo sin conexión / respaldo local**: Si el usuario no ha iniciado sesión, los datos continúan guardándose localmente y se migran automáticamente a Firestore al iniciar sesión.
 
 ## Publicación en redes: estado y seguridad
@@ -110,3 +111,10 @@ La rama de trabajo incluye una primera base para edición de objetos:
 6. Añadir pruebas automatizadas y validar compilación antes de desplegar.
 
 **Importante:** esta rama es desarrollo en curso. La publicación automática real todavía no está disponible y requiere credenciales oficiales configuradas en el entorno del servidor; nunca deben guardarse tokens en el frontend ni en el repositorio.
+
+## Persistencia del lienzo (etapa en desarrollo)
+
+- El documento `users/{userId}/workspace/current` conserva los datos de la plantilla activa y `layersByTemplate` para restaurar posiciones, dimensiones y rotaciones de los objetos.
+- Las plantillas personalizadas guardan también el mapa de capas por tipo, de modo que al aplicarlas se recupera su composición y no solamente los datos del partido.
+- Los documentos antiguos que solo contienen `templateData` siguen siendo compatibles; sus capas comienzan con la geometría predeterminada.
+- El autoguardado espera a que termine la restauración inicial para evitar sobrescribir la copia en la nube con el estado vacío del navegador.
