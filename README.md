@@ -86,3 +86,24 @@ La programación real necesitará una cola de trabajos persistente, un worker y 
 ## Variables de entorno
 
 Ver `.env.example`. No subir nunca un archivo `.env` real.
+
+## Avance del editor profesional y distribución social
+
+La rama de trabajo incluye una primera base para edición de objetos:
+- Capas con dimensiones opcionales de ancho y alto.
+- Tirador de redimensionamiento con puntero en el lienzo.
+- Inspector para posición X/Y, ancho, alto y rotación.
+- El modo manual permite copiar el texto preparado; el diseño se exporta desde el editor y se comparte en la aplicación oficial de cada red.
+- El modo automático permanece protegido: el endpoint responde como no configurado hasta implementar OAuth y adaptadores oficiales. No se deben mostrar publicaciones simuladas como exitosas.
+- El historial inicia vacío para evitar que ejemplos ficticios parezcan publicaciones reales.
+
+### Trabajo pendiente antes de producción
+
+1. Completar redimensionamiento visual consistente para cada tipo de objeto y plantillas; probar ratón, táctil y exportación.
+2. Guardar proyectos, medios y plantillas en almacenamiento persistente del servidor, con autenticación y control de acceso.
+3. Implementar conexión OAuth real, empezando por Meta (Facebook Pages e Instagram Professional).
+4. Crear cola persistente y trabajador de programación con zona horaria America/La_Paz, reintentos idempotentes y registro de respuestas oficiales.
+5. Integrar TikTok, YouTube y X según elegibilidad, permisos y revisión de cada plataforma.
+6. Añadir pruebas automatizadas y validar compilación antes de desplegar.
+
+**Importante:** esta rama es desarrollo en curso. La publicación automática real todavía no está disponible y requiere credenciales oficiales configuradas en el entorno del servidor; nunca deben guardarse tokens en el frontend ni en el repositorio.
