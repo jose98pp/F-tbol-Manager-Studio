@@ -136,3 +136,26 @@ La rama de trabajo incluye una primera base para edición de objetos:
 - La respuesta se almacena en caché durante 60 segundos y el endpoint valida liga e identificador de evento y aplica un tiempo máximo de espera.
 - La cobertura depende de ESPN y de la competición. Los campos ausentes se omiten; no se generan estadísticas ni incidencias ficticias.
 - Antes de publicar un gráfico, contrastar los valores con la ficha oficial del encuentro, especialmente en competiciones con cobertura parcial.
+ 
+## Despliegue en Vercel
+
+El proyecto está preparado para desplegarse en **Vercel** como una SPA de Vite con funciones Serverless para los endpoints de la API (`/api/*`):
+
+### 1. Archivos de configuración incluidos
+- `vercel.json`: Redirige `/api/(.*)` a la función serverless en `api/index.ts` y las rutas del frontend a `dist/index.html`.
+- `api/index.ts`: Punto de entrada Serverless que invoca la aplicación Express (`server.ts`) sin bloquear puertos.
+- `.gitignore`: Ignora la carpeta temporal `.vercel/` y artefactos de compilación.
+
+### 2. Pasos para desplegar
+1. **Subir el código a GitHub o GitLab**.
+2. **Importar el proyecto en Vercel**:
+   - Framework Preset: **Vite**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Install Command: `npm install`
+3. **Variables de entorno en el panel de Vercel**:
+   - `GEMINI_API_KEY`: Tu clave de API de Google AI Studio (requerida para generación de descripciones y simulaciones de partidos).
+4. **Autorizar el dominio en Firebase**:
+   - Entra a [Firebase Console](https://console.firebase.google.com/) -> Tu proyecto (`temporal-moon-llxdt`).
+   - Ve a **Authentication** -> **Settings (Configuración)** -> **Authorized domains (Dominios autorizados)**.
+   - Añade tu dominio de Vercel (por ejemplo: `tu-proyecto.vercel.app`) para que el inicio de sesión con Google funcione correctamente en producción.
