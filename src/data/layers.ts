@@ -8,6 +8,7 @@ export interface CanvasLayer {
   y: number; // offset in px
   width?: number; // optional fixed width in canvas px
   height?: number; // optional fixed height in canvas px
+  rotation?: number; // rotation in degrees
   zIndex: number; // stacking order
   opacity: number; // 0.0 to 1.0
   isLocked: boolean; // if true, cannot be dragged
