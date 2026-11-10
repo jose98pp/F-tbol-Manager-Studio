@@ -439,42 +439,13 @@ Reglas por red:
   }
 });
 
-// API: Simulated Multi-Channel Publishing & Scheduling
-app.post('/api/social/publish', (req, res) => {
-  const { channels = [], caption = '', scheduledFor, title = 'Publicación de Fútbol' } = req.body;
-  const isScheduled = !!scheduledFor;
-  const postId = `pub-${Date.now()}`;
-
-  const results = channels.map((channel: string) => {
-    // Generate realistic live URL per network
-    let postUrl = '';
-    const cleanChan = channel.toLowerCase();
-    if (cleanChan.includes('facebook')) {
-      postUrl = `https://www.facebook.com/posts/${Date.now().toString().slice(-8)}`;
-    } else if (cleanChan.includes('tiktok')) {
-      postUrl = `https://www.tiktok.com/@sports/video/${Date.now()}`;
-    } else if (cleanChan.includes('instagram')) {
-      postUrl = `https://www.instagram.com/p/C${Date.now().toString(36).toUpperCase()}/`;
-    } else if (cleanChan.includes('youtube')) {
-      postUrl = `https://www.youtube.com/post/Ugk${Date.now().toString(36)}`;
-    } else {
-      postUrl = `https://x.com/sports_bo/status/${Date.now()}`;
-    }
-
-    return {
-      channel,
-      status: isScheduled ? 'scheduled' : 'published',
-      publishedAt: isScheduled ? scheduledFor : new Date().toISOString(),
-      postUrl,
-      id: `${postId}-${cleanChan}`
-    };
-  });
-
-  return res.json({
-    success: true,
-    postId,
-    status: isScheduled ? 'scheduled' : 'published',
-    results
+// API: Social publishing is intentionally disabled until real provider adapters and OAuth
+// credentials are configured. Never fabricate post URLs or report a simulated publish as success.
+app.post('/api/social/publish', (_req, res) => {
+  return res.status(501).json({
+    success: false,
+    code: 'SOCIAL_PUBLISHING_NOT_CONFIGURED',
+    message: 'La publicación real todavía no está configurada. Conecta y autoriza las cuentas sociales antes de publicar o programar contenido.'
   });
 });
 
