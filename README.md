@@ -127,3 +127,12 @@ La rama de trabajo incluye una primera base para edición de objetos:
 - Los jugadores importados conservan nombre, dorsal, posición y fotografía cuando ESPN la proporciona; también se guardan en el plantel reutilizable del club.
 - La disponibilidad depende de la competición y del momento de publicación de ESPN. Si no hay XI oficial, la interfaz lo informa y no inventa jugadores.
 - El mapeo de posiciones se adapta a las categorías visuales del editor (POR, DEF, MED y DEL); revisar los datos del proveedor antes de publicar.
+
+
+## ESPN: estadísticas e incidencias del partido
+
+- El explorador consulta `GET /api/espn/statistics?league=bol.1&event=EVENT_ID` para obtener las estadísticas por equipo desde el resumen oficial de ESPN.
+- Muestra el marcador y las métricas que el proveedor entregue (por ejemplo, posesión, remates, remates al arco, córners y faltas), además de incidencias disponibles como goles, tarjetas y sustituciones.
+- La respuesta se almacena en caché durante 60 segundos y el endpoint valida liga e identificador de evento y aplica un tiempo máximo de espera.
+- La cobertura depende de ESPN y de la competición. Los campos ausentes se omiten; no se generan estadísticas ni incidencias ficticias.
+- Antes de publicar un gráfico, contrastar los valores con la ficha oficial del encuentro, especialmente en competiciones con cobertura parcial.
