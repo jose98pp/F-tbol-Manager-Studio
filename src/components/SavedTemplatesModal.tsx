@@ -4,6 +4,7 @@ import {
   DEFAULT_SAVED_PRESETS
 } from '../data/savedTemplates';
 import { TemplateData } from '../data/templates';
+import { CanvasLayer } from '../data/layers';
 import { useFirebase } from '../context/FirebaseContext';
 import { X, Bookmark, Plus, Check, Trash2, Calendar, Swords, Users, Flame, CheckCircle, Trophy, Sparkles, Cloud, CloudCheck } from 'lucide-react';
 
@@ -11,13 +12,15 @@ interface SavedTemplatesModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentData: TemplateData;
-  onApplyTemplate: (data: TemplateData) => void;
+  currentLayersByTemplate: Record<string, CanvasLayer[]>;
+  onApplyTemplate: (data: TemplateData, layersByTemplate?: Record<string, CanvasLayer[]>) => void;
 }
 
 export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
   isOpen,
   onClose,
   currentData,
+  currentLayersByTemplate,
   onApplyTemplate
 }) => {
   const { savedTemplates, addSavedTemplate, removeSavedTemplate, isCloudConnected } = useFirebase();
@@ -44,7 +47,8 @@ export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
       type: currentData.type,
       badgeTag: 'MI PLANTILLA',
       previewColor: 'from-cyan-500 to-blue-600',
-      data: currentData
+      data: currentData,
+      layersByTemplate: currentLayersByTemplate
     });
 
     setNewTemplateName('');
@@ -200,7 +204,7 @@ export const SavedTemplatesModal: React.FC<SavedTemplatesModalProps> = ({
               <div
                 key={preset.id}
                 onClick={() => {
-                  onApplyTemplate(preset.data);
+                  onApplyTemplate(preset.data, preset.layersByTemplate);
                   onClose();
                 }}
                 className="group p-4 bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-yellow-500/60 rounded-2xl cursor-pointer transition-all shadow-md flex flex-col justify-between"
