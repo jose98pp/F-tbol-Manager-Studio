@@ -130,25 +130,42 @@ export default function App() {
   const [showCanvasGuides, setShowCanvasGuides] = useState(false);
 
   const { user, saveWorkspaceSnapshot, loadWorkspaceSnapshot } = useFirebase();
+  const [workspaceLoadedForUser, setWorkspaceLoadedForUser] = useState<string | null>(null);
 
-  // Restore saved workspace from Firestore when user logs in
+  // Restore both banner data and editable canvas geometry before enabling auto-save.
   useEffect(() => {
-    if (!user) return;
-    loadWorkspaceSnapshot().then((saved) => {
-      if (saved) {
-        setData(saved);
-      }
-    });
-  }, [user]);
+    if (!user) {
+      setWorkspaceLoadedForUser(null);
+      return;
+    }
 
-  // Debounced auto-save of active banner to Firestore
+    let isActive = true;
+    setWorkspaceLoadedForUser(null);
+    loadWorkspaceSnapshot()
+      .then((saved) => {
+        if (!isActive) return;
+        if (saved) {
+          setData(saved.data);
+          setLayersByTemplate((current) => ({ ...current, ...saved.layersByTemplate }));
+        }
+        setWorkspaceLoadedForUser(user.uid);
+      })
+      .catch((error) => {
+        console.error('No se pudo restaurar el espacio de trabajo:', error);
+        if (isActive) setWorkspaceLoadedForUser(user.uid);
+      });
+
+    return () => { isActive = false; };
+  }, [user, loadWorkspaceSnapshot]);
+
+  // Do not overwrite cloud data until the initial restore has completed.
   useEffect(() => {
-    if (!user) return;
+    if (!user || workspaceLoadedForUser !== user.uid) return;
     const timeout = setTimeout(() => {
-      saveWorkspaceSnapshot(data);
+      saveWorkspaceSnapshot({ data, layersByTemplate });
     }, 2000);
     return () => clearTimeout(timeout);
-  }, [user, data]);
+  }, [user, workspaceLoadedForUser, data, layersByTemplate, saveWorkspaceSnapshot]);
 
   const currentCompetition = getCompetitionById(data.competitionId);
 
@@ -1682,7 +1699,11 @@ export default function App() {
         isOpen={isSavedTemplatesModalOpen}
         onClose={() => setIsSavedTemplatesModalOpen(false)}
         currentData={data}
-        onApplyTemplate={(newTemplateData) => setData(newTemplateData)}
+        currentLayersByTemplate={layersByTemplate}
+        onApplyTemplate={(newTemplateData, savedLayers) => {
+          setData(newTemplateData);
+          if (savedLayers) setLayersByTemplate((current) => ({ ...current, ...savedLayers }));
+        }}
       />
 
       {/* Matchday Batch Generator */}
