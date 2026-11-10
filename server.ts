@@ -672,11 +672,15 @@ app.get('/api/espn/summary', async (req, res) => {
     const teams = competitors.map((competitor: any) => {
       const team = competitor.team || competitor;
       const group = rosterGroups.find((entry: any) => String(entry.team?.id || entry.teamId || entry.id || '') === String(team.id));
-      const rawPlayers = group?.roster || group?.players || group?.athletes || competitor.roster || [];
+      const groupedAthletes = Array.isArray(group?.statistics)
+        ? group.statistics.flatMap((stat: any) => Array.isArray(stat.athletes) ? stat.athletes : [])
+        : [];
+      const rawPlayers = group?.roster || group?.players || group?.athletes || competitor.roster || groupedAthletes;
       const players = (Array.isArray(rawPlayers) ? rawPlayers : []).map((entry: any, index: number) => {
         const athlete = entry.athlete || entry.player || entry;
         const position = athlete.position || entry.position;
-        const starter = entry.starter === true || entry.isStarter === true || entry.status?.type?.name === 'Starter';
+        const starter = entry.starter === true || entry.isStarter === true || athlete.starter === true
+          || entry.status?.type?.name === 'Starter' || entry.status?.name === 'Starter';
         return {
           id: String(athlete.id || `${team.id || 'team'}-${index}`),
           name: athlete.displayName || athlete.fullName || athlete.name || '',
