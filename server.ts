@@ -658,7 +658,7 @@ app.get('/api/espn/statistics', async (req, res) => {
     const raw: any = await response.json();
     const competitors = raw.header?.competitions?.[0]?.competitors || [];
     const boxscoreTeams = raw.boxscore?.teams || [];
-    const normalize = (value: any) => String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+    const normalize = (value: any) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const teamStats = competitors.map((competitor: any) => {
       const team = competitor.team || {};
       const boxTeam = boxscoreTeams.find((entry: any) => String(entry.team?.id || '') === String(team.id));
