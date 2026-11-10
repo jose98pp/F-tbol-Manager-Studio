@@ -676,7 +676,11 @@ app.get('/api/espn/summary', async (req, res) => {
         ? group.statistics.flatMap((stat: any) => Array.isArray(stat.athletes) ? stat.athletes : [])
         : [];
       const nestedPlayers = Array.isArray(group?.players)
-        ? group.players.flatMap((entry: any) => Array.isArray(entry.athletes) ? entry.athletes : [entry])
+        ? group.players.flatMap((entry: any) => Array.isArray(entry.athletes)
+          ? entry.athletes
+          : Array.isArray(entry.statistics)
+            ? entry.statistics.flatMap((stat: any) => Array.isArray(stat.athletes) ? stat.athletes : [])
+            : [entry])
         : [];
       const rawPlayers = group?.roster || group?.athletes || competitor.roster || (nestedPlayers.length ? nestedPlayers : groupedAthletes);
       const players = (Array.isArray(rawPlayers) ? rawPlayers : []).map((entry: any, index: number) => {
