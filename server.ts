@@ -627,6 +627,83 @@ app.get('/api/espn/scoreboard', async (req, res) => {
  */
 const espnSummaryCache = new Map<string, { timestamp: number; data: any }>();
 
+// API: ESPN match statistics, scorers and substitutions
+const espnStatsCache = new Map<string, { timestamp: number; data: any }>();
+app.get('/api/espn/statistics', async (req, res) => {
+  try {
+    const league = String(req.query.league || 'bol.1').trim();
+    const eventId = String(req.query.event || '').trim();
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(eventId)) {
+      return res.status(400).json({ error: 'Identificador de partido no válido.' });
+    }
+    if (!/^[a-zA-Z0-9._-]{1,80}$/.test(league)) {
+      return res.status(400).json({ error: 'Liga ESPN no válida.' });
+    }
+
+    const cacheKey = `${league}_${eventId}`;
+    const cached = espnStatsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 60_000) return res.json(cached.data);
+
+    const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(league)}/summary?event=${encodeURIComponent(eventId)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) return res.status(response.status).json({ error: `ESPN respondió ${response.status}` });
+
+    const raw: any = await response.json();
+    const competitors = raw.header?.competitions?.[0]?.competitors || [];
+    const boxscoreTeams = raw.boxscore?.teams || [];
+    const normalize = (value: any) => String(value || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+    const teamStats = competitors.map((competitor: any) => {
+      const team = competitor.team || {};
+      const boxTeam = boxscoreTeams.find((entry: any) => String(entry.team?.id || '') === String(team.id));
+      const stats: Record<string, string | number> = {};
+      (boxTeam?.statistics || []).forEach((stat: any) => {
+        const key = normalize(stat.name || stat.abbreviation || stat.displayName).replace(/[^a-z0-9]/g, '');
+        const value = stat.displayValue ?? stat.value ?? null;
+        if (value !== null && value !== '') stats[key] = value;
+      });
+      return {
+        teamId: String(team.id || ''),
+        teamName: team.displayName || team.name || 'Equipo',
+        logo: team.logo || '',
+        score: competitor.score ?? null,
+        statistics: stats
+      };
+    });
+
+    const plays = Array.isArray(raw.plays) ? raw.plays : [];
+    const events = plays.map((play: any) => {
+      const type = normalize(play.type?.text || play.type?.name || play.text);
+      const participants = (play.participants || []).map((participant: any) => participant.athlete?.displayName || participant.player?.displayName || participant.displayName).filter(Boolean);
+      const teamId = String(play.team?.id || play.teamId || '');
+      const clock = play.clock?.displayValue || play.period?.displayValue || '';
+      const description = play.text || play.shortText || play.type?.text || '';
+      return { id: String(play.id || ''), type, description, clock, teamId, participants };
+    }).filter((event: any) => /goal|score|substitut|yellow.?card|red.?card|booking|penalty/.test(event.type + ' ' + normalize(event.description)));
+
+    const payload = {
+      eventId,
+      available: teamStats.some((team: any) => Object.keys(team.statistics).length > 0) || events.length > 0,
+      teams: teamStats,
+      events,
+      leaders: raw.leaders || [],
+      source: 'ESPN',
+      updatedAt: new Date().toISOString()
+    };
+    espnStatsCache.set(cacheKey, { timestamp: Date.now(), data: payload });
+    return res.json(payload);
+  } catch (error: any) {
+    console.error('Error fetching ESPN match statistics:', error);
+    return res.status(500).json({ error: 'No se pudieron consultar las estadísticas de ESPN.' });
+  }
+});
+
 app.get('/api/espn/summary', async (req, res) => {
   try {
     const league = String(req.query.league || 'bol.1').trim();
